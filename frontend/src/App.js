@@ -5,8 +5,16 @@ import { HiMail } from "react-icons/hi";
 import { CgProfile } from "react-icons/cg";
 import { FaLock } from "react-icons/fa";
 import { useState } from "react";
+import { UserAuth } from "./context/AuthContext";
 function App() {
+  const [username, setusername] = useState('')
+  const [password, setpassword] = useState('')
+  const [confirmPassword, setconfirmPassword] = useState('')
+  const [loading, setloading] = useState('')
   const [pageaside, setPageaside] = useState('Login')
+  const session  = UserAuth()
+  console.log(session);
+  
   const handleBPage = () => {
     if(pageaside==="Login"){
       setPageaside('Sign Up')
@@ -19,9 +27,9 @@ function App() {
   
   return (
     <>
-      <main class="relative h-screen w-screen">
-        <div class="absolute inset-0 -z-10 h-full w-full bg-white bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]">
-          <div class="absolute left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-fuchsia-400 opacity-20 blur-[100px]"></div>
+      <main className="relative h-screen w-screen">
+        <div className="absolute inset-0 -z-10 h-full w-full bg-white bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]">
+          <div className="absolute left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-fuchsia-400 opacity-20 blur-[100px]"></div>
         </div>
         <section className="h-[90vh] w-screen flex justify-center items-center">
           <div className="bg-slate-200/50 w-full mt-20 rounded-b-2xl md:rounded-b-xl max-w-6xl md:w-[57vw] h-[90vh] md:h-[65vh] shadow-xl rounded-xl flex flex-col md:flex-row">
@@ -77,21 +85,8 @@ function App() {
       {pageaside},
     </h1>
 
-    <div className="flex flex-col items-center gap-4">
-      {pageaside === "Sign Up" && (
-        <div className="w-full max-w-sm flex relative">
-          <input
-            className="px-4 py-2 w-full rounded-md pr-10"
-            type="text"
-            placeholder="Email"
-          />
-          <MdEmail
-            color="#959595"
-            size="1.5em"
-            className="absolute right-3 top-3"
-          />
-        </div>
-      )}
+    <form className="flex flex-col items-center gap-4">
+      
 
       <div className="w-full max-w-sm flex relative">
         <input
@@ -118,18 +113,32 @@ function App() {
           className="absolute right-3 top-3"
         />
       </div>
+      {pageaside === "Sign Up" && (
+        <div className="w-full max-w-sm flex relative">
+          <input
+            className="px-4 py-2 w-full rounded-md pr-10"
+            type="text"
+            placeholder="Confirm Password"
+          />
+          <MdEmail
+            color="#959595"
+            size="1.5em"
+            className="absolute right-3 top-3"
+          />
+        </div>
+      )}
 
       <div className="text-sm underline text-gray-600 self-start ml-2">
         Forget Password?
       </div>
 
-      <button
-        type="button"
+      <button disabled={loading}
+        type="submit"
         className="mt-2 text-white bg-gray-800 w-full max-w-sm hover:bg-gray-900 focus:outline-none focus:ring-4 focus:ring-gray-300 font-medium rounded-3xl text-sm px-5 py-2.5"
       >
         {pageaside}
       </button>
-    </div>
+    </form>
   </div>
 </div>
 
