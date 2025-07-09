@@ -38,10 +38,13 @@ def register():
         if password != confirm_password:
             return jsonify({'error': 'Passwords do not match'}), 400
 
-        # Get Firestore db instance
-        db = firestore.client()
+        try:
+            from firebase_admin import firestore
+            db = firestore.client()
+        except Exception as e:
+            print(f"Firebase not available: {e}")
+            return jsonify({'error': 'Database not available'}), 503
         
-        # Check if username already exists
         if User.get_by_username(db, username):
             return jsonify({'error': 'Username already exists'}), 409
 
@@ -63,7 +66,6 @@ def register():
             salt=salt.hex()
         )
 
-        # Save user to Firestore
         user_id = new_user.save(db)
 
         return jsonify({
