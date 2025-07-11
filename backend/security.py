@@ -57,3 +57,19 @@ def encrypt_secret_key(secret_key_hex, password, salt, iv):
 
     encrypted_sk = encryptor.update(padded_sk) + encryptor.finalize()
     return encrypted_sk
+def decrypt_secret_key(encrypted_sk_hex, password, salt_hex, iv_hex):
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=bytes.fromhex(salt_hex),
+        iterations=PBKDF2_ITERATIONS
+    )
+    decryption_key = kdf.derive(password.encode())
+
+    cipher = Cipher(algorithms.AES(decryption_key), modes.CBC(bytes.fromhex(iv_hex)))
+    decryptor = cipher.decryptor()
+    decrypted_padded = decryptor.update(bytes.fromhex(encrypted_sk_hex)) + decryptor.finalize()
+
+    unpadder = padding.PKCS7(128).unpadder()
+    return unpadder.update(decrypted_padded) + unpadder.finalize()
+

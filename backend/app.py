@@ -1,39 +1,33 @@
 from flask import Flask
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager
 import os
-import re
 import base64
-import bcrypt
-import warnings
-from routes.auth import auth_bp
-import firebase_admin
-from firebase_admin import credentials, auth, firestore, initialize_app
 import json
+import warnings
+import firebase_admin
+from firebase_admin import credentials, firestore, initialize_app
 from dotenv import load_dotenv
+from routes.auth import auth_bp
 
 warnings.filterwarnings("ignore")
-
 load_dotenv()
 
+# Firebase initialization
 try:
     firebase_creds_base64 = os.getenv('FIREBASE_CREDENTIALS')
     if not firebase_creds_base64:
-        raise ValueError("environment variable is not set")
+        raise ValueError("FIREBASE_CREDENTIALS environment variable is not set")
 
-    try:
-        # Add padding if needed
-        padding = 4 - (len(firebase_creds_base64) % 4)
-        if padding != 4:
-            firebase_creds_base64 += '=' * padding
-        
-        firebase_creds_json = base64.b64decode(firebase_creds_base64).decode('utf-8')
-        firebase_creds_dict = json.loads(firebase_creds_json)
-    except Exception as decode_error:
-        print(f"Error decoding Firebase credentials: {decode_error}")
-        raise
+    # Padding fix
+    padding = 4 - (len(firebase_creds_base64) % 4)
+    if padding != 4:
+        firebase_creds_base64 += '=' * padding
+
+    firebase_creds_json = base64.b64decode(firebase_creds_base64).decode('utf-8')
+    firebase_creds_dict = json.loads(firebase_creds_json)
 
     cred = credentials.Certificate(firebase_creds_dict)
-    
     try:
         firebase_app = firebase_admin.get_app()
     except ValueError:
@@ -41,27 +35,23 @@ try:
 
     db = firestore.client(app=firebase_app)
     print("Firestore client initialized successfully")
-    
+
 except Exception as e:
     print(f"Firebase initialization error: {e}")
 
-from models import User, Friend, Message
-from kyber import KyberWrapper
-from security import (
-    validate_password,
-    validate_username,
-    hash_password,
-    check_password,
-    encrypt_secret_key
-)
-
+# App setup
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
-CORS(app)
+app.config["JWT_SECRET_KEY"] = os.getenv('FLASK_JWT_SECRET')
 
+# Setup CORS for all API routes with credentials support
+CORS(app, supports_credentials=True, resources={r"/api/*": {"origins": "http://localhost:3000"}})
+
+# JWT Manager
+jwt = JWTManager(app)
+
+# Register blueprints
 app.register_blueprint(auth_bp)
-
-kyber_wrapper = KyberWrapper()
 
 if __name__ == '__main__':
     print("Starting Flask app...")
