@@ -19,6 +19,7 @@ function App() {
 
   useEffect(() => {
     fetchUserProfile();
+    navigate("/messages");
   }, []);
 
   useEffect(() => {
@@ -42,7 +43,7 @@ function App() {
   ];
 
   return (
-    <main className="p-6 py-10 min-h-screen flex max-w-screen text-white bg-[#030018]">
+    <main className=" pt-10 pb-7 min-h-screen  flex max-w-screen text-white bg-[#030018]">
       {/* Sidebar */}
       <div className="w-[6vw] min-h-[90vh] flex flex-col justify-between bg-[#030018]">
         <div className="flex items-center flex-col">
@@ -71,7 +72,6 @@ function App() {
                 <div className="relative z-10 text-white">{icon}</div>
               </Link>
             ))}
-            <IoAnalyticsOutline size="1.5em" color="white" title="Analytics" />
           </div>
 
           <div className="info mt-6">
@@ -83,7 +83,7 @@ function App() {
         <div className="flex items-center flex-col">
           <div className="flex items-center gap-8 flex-col">
             <IoSettingsOutline size="1.5em" color="white" title="Settings" />
-            <Link to="#">
+            <Link to="/about_me" className="flex items-center gap-2">
               <IoMdInformationCircleOutline size="1.5em" className="fill-white" fill="white" />
             </Link>
             <TfiLayoutLineSolid color="gray" size="1.8em" />

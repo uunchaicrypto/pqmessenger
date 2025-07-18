@@ -7,7 +7,7 @@ import FriendRequest from '../Components/FriendRequest';
 import Chat from '../Components/Chat';
 import Notification from '../Components/Notification';
 import Info from '../Components/Info';
-
+import AboutMe from '../Components/AboutMe';
 export const router = createBrowserRouter([
   {
     path: '/',
@@ -37,6 +37,10 @@ export const router = createBrowserRouter([
         path: 'notification',
         element: <Notification />,
       },
+      {
+        path: 'about_me',
+        element: <AboutMe />,
+      }
     ],
   },
   {
