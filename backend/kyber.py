@@ -1,13 +1,19 @@
 import os
 from ctypes import CDLL, c_ubyte, POINTER, c_int
 from dotenv import load_dotenv
+import platform
+
 
 load_dotenv()
 
 class KyberWrapper:
     def __init__(self, lib_path=None):
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        default_path = os.path.join(base_dir, 'libkyber.so')
+        ext = {
+            "Windows": "dll",
+            "Linux": "so",
+        }[platform.system()]
+        default_path = os.path.join(base_dir, f'libkyber.{ext}')    
         self.lib_path = lib_path or os.getenv('KYBER_LIB_PATH', default_path)
 
         try:
