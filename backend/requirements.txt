@@ -8,3 +8,4 @@ google-auth==2.23.4
 google-api-core==2.11.1
 flask-session
 pyjwt
+flask-jwt-extended
