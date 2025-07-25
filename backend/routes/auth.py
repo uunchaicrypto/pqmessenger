@@ -420,3 +420,103 @@ def get_friend_by_id(friend_id):
 
     except Exception as e:
         return jsonify({"error": f"Failed to fetch friend info: {str(e)}"}), 500
+@auth_bp.route("/friend/<friend_id>/<message>", methods=["POST"])
+def chat_message(friend_id, message):
+    try:
+        db = firestore.client()
+        friend_doc = db.collection("users").document(friend_id).get()
+        if not friend_doc.exists:
+            return jsonify({"error": "Friend not found"}), 404
+
+        friend_data = friend_doc.to_dict()
+        public_key = bytes.fromhex(friend_data.get("public_key"))
+
+        if not public_key:
+            return jsonify({"error": "Friend's public key not found"}), 404
+
+        # Step 1: Encapsulate using Kyber
+        kyber = KyberWrapper()
+        ciphertext, shared_secret = kyber.encapsulate(public_key)
+
+        # Step 2: Derive symmetric key from shared_secret
+        key = hashlib.sha256(shared_secret).digest()  # 32 bytes AES key
+
+        iv = secrets.token_bytes(16)
+
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
+        encryptor = cipher.encryptor()
+        padder = sym_padding.PKCS7(128).padder()
+
+        padded_message = padder.update(message.encode()) + padder.finalize()
+        encrypted_message = encryptor.update(padded_message) + encryptor.finalize()
+
+        db.collection("messages").add(
+            {
+                "from": g.user_id,
+                "to": friend_id,
+                "ciphertext": ciphertext.hex(),
+                "iv": iv.hex(),
+                "message": encrypted_message.hex(),
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
+
+        return jsonify({"message": "Message sent securely"}), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Message sending failed: {str(e)}"}), 500
+
+
+@auth_bp.route("/get_messages/<friend_id>", methods=["GET"])
+def get_messages(friend_id):
+    try:
+        db = firestore.client()
+
+        current_user_id = g.user_id
+
+        messages_ref = db.collection("messages")
+        sent_query = messages_ref.where("from", "==", current_user_id).where(
+            "to", "==", friend_id
+        )
+        recv_query = messages_ref.where("from", "==", friend_id).where(
+            "to", "==", current_user_id
+        )
+
+        sent_msgs = sent_query.stream()
+        recv_msgs = recv_query.stream()
+
+        all_msgs = []
+
+        for msg in sent_msgs:
+            data = msg.to_dict()
+            all_msgs.append(
+                {
+                    "from": data["from"],
+                    "to": data["to"],
+                    "ciphertext": data["ciphertext"],
+                    "iv": data["iv"],
+                    "message": data["message"],
+                    "timestamp": data["timestamp"],
+                }
+            )
+
+        for msg in recv_msgs:
+            data = msg.to_dict()
+            all_msgs.append(
+                {
+                    "from": data["from"],
+                    "to": data["to"],
+                    "ciphertext": data["ciphertext"],
+                    "iv": data["iv"],
+                    "message": data["message"],
+                    "timestamp": data["timestamp"],
+                }
+            )
+
+        # Sort messages by timestamp
+        all_msgs.sort(key=lambda m: m["timestamp"])
+
+        return jsonify(all_msgs), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch messages: {str(e)}"}), 500
