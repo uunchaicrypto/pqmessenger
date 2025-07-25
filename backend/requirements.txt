@@ -9,6 +9,5 @@ google-api-core==2.11.1
 flask-session
 pyjwt
 flask-jwt-extended
-platform
 requests==2.31.0
 gunicorn==20.1.0
