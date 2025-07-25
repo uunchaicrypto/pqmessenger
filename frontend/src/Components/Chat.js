@@ -1,4 +1,3 @@
-import React, { useState, useEffect } from "react";
 import { BsThreeDotsVertical } from "react-icons/bs";
 import "../ComponentsCss/chat.css";
 import { FaPlus } from "react-icons/fa6";

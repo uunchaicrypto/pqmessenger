@@ -1,4 +1,3 @@
-import React from "react";
 import { UserAuth } from "../context/AuthContext";
 import profileImg from "../assets/profile.png";
 import { motion } from "framer-motion";
