@@ -5,7 +5,7 @@ import { IoMdSend } from "react-icons/io";
 import { Outlet, useParams, useNavigate, useLocation, useNavigation } from "react-router-dom";
 import profileImg from "../assets/profile.png";
 import { AxiosClient } from "../utils/AxiosClient";
-
+import React, { useEffect, useState } from "react";
 const Spinner = () => (
   <div className="flex items-center justify-center min-h-[90vh] w-full">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
