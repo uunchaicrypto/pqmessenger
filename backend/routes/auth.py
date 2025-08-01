@@ -48,10 +48,10 @@ def register():
         if User.get_by_username(db, username):
             return jsonify({"error": "Username already exists"}), 409
 
-        public_key, secret_key = kyber_wrapper.generate_keypair()
+        public_key, private_key = kyber_wrapper.generate_keypair()
         salt = os.urandom(16)
         iv = os.urandom(16)
-        encrypted_sk = encrypt_secret_key(secret_key, password, salt, iv)
+        encrypted_sk = encrypt_secret_key([private_key], password, salt, iv)
         password_hash = hash_password(password)
 
         new_user = User(
