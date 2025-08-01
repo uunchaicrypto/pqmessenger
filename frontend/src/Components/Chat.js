@@ -13,6 +13,7 @@ const Spinner = () => (
 );
 
 const Chat = () => {
+
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -21,12 +22,14 @@ const Chat = () => {
   const [info, setInfo] = useState(false);
   const [friends, setFriends] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-
+  
+  const [message, setMessage] = useState("");
   const token = localStorage.getItem("token");
 
   useEffect(() => {
     setInfo(location.pathname.endsWith("/info"));
   }, [location]);
+
 
   useEffect(() => {
     const fetchFriends = async () => {
@@ -64,6 +67,30 @@ const Chat = () => {
       navigate(`/messages/${id}/info`);
     }
   };
+
+  const sendMessage = async () => {
+  if (!message.trim()) return;
+
+  try {
+    const response = await AxiosClient.post(
+      `/friend/${id}/${encodeURIComponent(message)}`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.status === 200) {
+      setMessage(""); // clear input on success
+    } else {
+      console.error("Failed to send message", response.data);
+    }
+  } catch (error) {
+    console.error("Error sending message", error);
+  }
+};
 
   const currentFriend = friends.find((friend) => friend.id === id);
 
@@ -125,15 +152,18 @@ const Chat = () => {
             <FaPlus size="0.9em" />
           </div>
           <input
-            type="text"
-            placeholder="Type a Message"
-            className={`p-2 placeholder-[#3e3757] placeholder-sm ${
-              info ? "w-[29rem]" : "w-[46rem]"
-            } bg-transparent outline-none`}
-            disabled={!currentFriend}
-          />
+              type="text"
+              placeholder="Type a Message"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className={`p-2 placeholder-[#3e3757] placeholder-sm ${
+                info ? "w-[29rem]" : "w-[46rem]"
+              } bg-transparent outline-none`}
+              disabled={!currentFriend}
+            />
+
           <div className="flex justify-end w-[6.5rem]">
-            <button type="button" disabled={!currentFriend}>
+            <button type="button" onClick={sendMessage} disabled={!currentFriend}>
               <div className="flex px-2 py-3 bg-[#251a4c] rounded-xl gap-2 items-center">
                 <IoMdSend size="1.4rem" />
               </div>
@@ -143,7 +173,7 @@ const Chat = () => {
       </div>
 
       {/* Info Panel if open */}
-      {info && (
+      {info && ( 
         <div>
           <Outlet />
         </div>
