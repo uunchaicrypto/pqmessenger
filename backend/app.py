@@ -38,6 +38,7 @@ try:
 
 except Exception as e:
     print(f"Firebase initialization error: {e}")
+    exit(1)
 
 # App setup
 app = Flask(__name__)
