@@ -4,7 +4,7 @@ import secrets
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as sym_padding
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 import jwt
 from models.user import User
 from kyber import KyberWrapper
@@ -428,47 +428,76 @@ def get_friend_by_id(friend_id):
 def chat_message(friend_id, message):
     try:
         db = firestore.client()
-        friend_doc = db.collection("users").document(friend_id).get()
-        if not friend_doc.exists:
-            return jsonify({"error": "Friend not found"}), 404
-
-        friend_data = friend_doc.to_dict()
-        public_key = bytes.fromhex(friend_data.get("public_key"))
-
-        if not public_key:
-            return jsonify({"error": "Friend's public key not found"}), 404
-
-        # Step 1: Encapsulate using Kyber
         kyber = KyberWrapper()
-        ciphertext, shared_secret = kyber.encapsulate(public_key)
 
-        # Step 2: Derive symmetric key from shared_secret
-        key = hashlib.sha256(shared_secret).digest()  # 32 bytes AES key
+        # Get both of'em's data
+        user_doc = db.collection("users").document(g.user_id).get()
+        friend_doc = db.collection("users").document(friend_id).get()
 
-        iv = secrets.token_bytes(16)
+        if not user_doc.exists or not friend_doc.exists:
+            return jsonify({"error": "User or friend not found"}), 404
+        # get actual public keys
+        sender_pk = bytes.fromhex(user_doc.to_dict().get("public_key"))
+        receiver_pk = bytes.fromhex(friend_doc.to_dict().get("public_key"))
 
-        cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
+        # Generate aes and iv to encrypt the message 
+        aes_key = secrets.token_bytes(32)  # 256-bit key
+        iv_message = secrets.token_bytes(16)
+
+        # Encrypt the message
+        cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv_message))
         encryptor = cipher.encryptor()
         padder = sym_padding.PKCS7(128).padder()
 
-        padded_message = padder.update(message.encode()) + padder.finalize()
-        encrypted_message = encryptor.update(padded_message) + encryptor.finalize()
+        padded_msg = padder.update(message.encode()) + padder.finalize()
+        encrypted_message = encryptor.update(padded_msg) + encryptor.finalize()
 
-        db.collection("messages").add(
-            {
-                "from": g.user_id,
-                "to": friend_id,
-                "ciphertext": ciphertext.hex(),
-                "iv": iv.hex(),
-                "message": encrypted_message.hex(),
-                "timestamp": datetime.utcnow().isoformat(),
-            }
-        )
+    #    Wrap the AES key for receiver
+        ct_receiver, ss_receiver = kyber.encapsulate(receiver_pk)
+        key_receiver = hashlib.sha256(ss_receiver).digest()
+        iv_receiver = secrets.token_bytes(16)
 
-        return jsonify({"message": "Message sent securely"}), 200
+        cipher_receiver = Cipher(algorithms.AES(key_receiver), modes.CBC(iv_receiver))
+        encryptor_receiver = cipher_receiver.encryptor()
+        padder_receiver = sym_padding.PKCS7(128).padder()
+        padded_aes_key_r = padder_receiver.update(aes_key) + padder_receiver.finalize()
+        encrypted_aes_key_receiver = encryptor_receiver.update(padded_aes_key_r) + encryptor_receiver.finalize()
+
+    #    Wrap the AES key for sender
+        ct_sender, ss_sender = kyber.encapsulate(sender_pk)
+        key_sender = hashlib.sha256(ss_sender).digest()
+        iv_sender = secrets.token_bytes(16)
+
+        cipher_sender = Cipher(algorithms.AES(key_sender), modes.CBC(iv_sender))
+        encryptor_sender = cipher_sender.encryptor()
+        padder_sender = sym_padding.PKCS7(128).padder()
+        padded_aes_key_s = padder_sender.update(aes_key) + padder_sender.finalize()
+        encrypted_aes_key_sender = encryptor_sender.update(padded_aes_key_s) + encryptor_sender.finalize()
+
+        #  Store in database
+        db.collection("messages").add({
+            "from": g.user_id,
+            "to": friend_id,
+            "message": encrypted_message.hex(),
+            "iv_message": iv_message.hex(),
+
+            "receiver_ciphertext": ct_receiver.hex(),
+            "receiver_encrypted_key": encrypted_aes_key_receiver.hex(),
+            "receiver_iv": iv_receiver.hex(),
+
+            "sender_ciphertext": ct_sender.hex(),
+            "sender_encrypted_key": encrypted_aes_key_sender.hex(),
+            "sender_iv": iv_sender.hex(),
+
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+
+        return jsonify({"message": "Secure message sent!"}), 200
 
     except Exception as e:
-        return jsonify({"error": f"Message sending failed: {str(e)}"}), 500
+        return jsonify({"error": f"Message send failed: {str(e)}"}), 500
+
+
 
 
 @auth_bp.route("/get_messages/<friend_id>", methods=["GET"])
