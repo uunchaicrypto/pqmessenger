@@ -133,10 +133,10 @@ def login():
         user_private_key = user_data.get("encrypted_secret_key", "")
         if not user_private_key:
             return jsonify({"error": "User private key not found"}), 404
-        user_salt = bytes.fromhex(user_data.get("salt", ""))
-        user_iv = bytes.fromhex(user_data.get("iv", ""))
+        user_salt_hex = user_data.get("salt", "")
+        user_iv_hex = user_data.get("iv", "")
         decrypted_private_key = decrypt_secret_key(
-            user_private_key, password, user_salt, user_iv
+            user_private_key, password, user_salt_hex, user_iv_hex
         )
         if not decrypted_private_key:
             return jsonify({"error": "Decryption failed"}), 500
@@ -492,46 +492,57 @@ def chat_message(friend_id, message):
         user_doc = db.collection("users").document(g.user_id).get()
         friend_doc = db.collection("users").document(friend_id).get()
 
+        print("data gotten")
+
         if not user_doc.exists or not friend_doc.exists:
             return jsonify({"error": "User or friend not found"}), 404
         # get actual public keys
         sender_pk = bytes.fromhex(user_doc.to_dict().get("public_key"))
         receiver_pk = bytes.fromhex(friend_doc.to_dict().get("public_key"))
 
+        # print("public keys gotten")
+
         # Generate aes and iv to encrypt the message 
         aes_key = secrets.token_bytes(32)  # 256-bit key
         iv_message = secrets.token_bytes(16)
+        # print("aes key and iv generated")
 
         # Encrypt the message
         cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv_message))
         encryptor = cipher.encryptor()
         padder = sym_padding.PKCS7(128).padder()
+        # print("cipher created")
 
         padded_msg = padder.update(message.encode()) + padder.finalize()
         encrypted_message = encryptor.update(padded_msg) + encryptor.finalize()
+        # print("message encrypted")
 
+        # print("receiver pk type:", type(receiver_pk))
     #    Wrap the AES key for receiver
         ct_receiver, ss_receiver = kyber.encapsulate(receiver_pk)
         key_receiver = hashlib.sha256(ss_receiver).digest()
         iv_receiver = secrets.token_bytes(16)
+        # print("receiver's kyber encapsulated")
 
         cipher_receiver = Cipher(algorithms.AES(key_receiver), modes.CBC(iv_receiver))
         encryptor_receiver = cipher_receiver.encryptor()
         padder_receiver = sym_padding.PKCS7(128).padder()
         padded_aes_key_r = padder_receiver.update(aes_key) + padder_receiver.finalize()
         encrypted_aes_key_receiver = encryptor_receiver.update(padded_aes_key_r) + encryptor_receiver.finalize()
+        # print("receiver's aes key encrypted")
 
     #    Wrap the AES key for sender
         ct_sender, ss_sender = kyber.encapsulate(sender_pk)
         key_sender = hashlib.sha256(ss_sender).digest()
         iv_sender = secrets.token_bytes(16)
+        # print("sender's kyber encapsulated")
 
         cipher_sender = Cipher(algorithms.AES(key_sender), modes.CBC(iv_sender))
         encryptor_sender = cipher_sender.encryptor()
         padder_sender = sym_padding.PKCS7(128).padder()
         padded_aes_key_s = padder_sender.update(aes_key) + padder_sender.finalize()
         encrypted_aes_key_sender = encryptor_sender.update(padded_aes_key_s) + encryptor_sender.finalize()
-
+        # print("sender's aes key encrypted")
         #  Store in database
         db.collection("messages").add({
             "from": g.user_id,
@@ -577,8 +588,8 @@ def get_messages(friend_id):
         private_key_hex = redis_client.hget(f"session:{session_id}", "private_key")
         if not private_key_hex: 
             return jsonify({"error": "Session not found"}), 404
-        private_key = bytes.fromhex(private_key_hex)
 
+        private_key = bytes.fromhex(private_key_hex)
 
 
         messages_ref = db.collection("messages")
@@ -597,27 +608,37 @@ def get_messages(friend_id):
         for msg in sent_msgs:
             data = msg.to_dict()
             all_msgs.append(
-                {
-                    "from": data["from"],
-                    "to": data["to"],
-                    "ciphertext": data["ciphertext"],
-                    "iv": data["iv"],
-                    "message": data["message"],
-                    "timestamp": data["timestamp"],
-                }
+            {
+                "from": data["from"],
+                "to": data["to"],
+                "message": data["message"],
+                "iv_message": data["iv_message"],
+                "sender_ciphertext": data["sender_ciphertext"],
+                "sender_encrypted_key": data["sender_encrypted_key"],
+                "sender_iv": data["sender_iv"],
+                "receiver_ciphertext": data["receiver_ciphertext"],
+                "receiver_encrypted_key": data["receiver_encrypted_key"],
+                "receiver_iv": data["receiver_iv"],
+                "timestamp": data["timestamp"],
+            }
             )
 
         for msg in recv_msgs:
             data = msg.to_dict()
             all_msgs.append(
-                {
-                    "from": data["from"],
-                    "to": data["to"],
-                    "ciphertext": data["ciphertext"],
-                    "iv": data["iv"],
-                    "message": data["message"],
-                    "timestamp": data["timestamp"],
-                }
+            {
+                "from": data["from"],
+                "to": data["to"],
+                "message": data["message"],
+                "iv_message": data["iv_message"],
+                "sender_ciphertext": data["sender_ciphertext"],
+                "sender_encrypted_key": data["sender_encrypted_key"],
+                "sender_iv": data["sender_iv"],
+                "receiver_ciphertext": data["receiver_ciphertext"],
+                "receiver_encrypted_key": data["receiver_encrypted_key"],
+                "receiver_iv": data["receiver_iv"],
+                "timestamp": data["timestamp"],
+            }
             )
 
         # Sort messages by timestamp
