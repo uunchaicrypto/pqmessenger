@@ -4,7 +4,11 @@ import bcrypt
 import base64
 
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives import hashes, padding
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import padding 
+from kyber import KyberWrapper
+import hashlib
+
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from dotenv import load_dotenv
@@ -73,3 +77,40 @@ def decrypt_secret_key(encrypted_sk_hex, password, salt_hex, iv_hex):
     unpadder = padding.PKCS7(128).unpadder()
     return unpadder.update(decrypted_padded) + unpadder.finalize()
 
+
+def decrypt_message(message_doc, current_user_id, private_key):
+    kyber = KyberWrapper()
+    if current_user_id == message_doc["to"]:
+        # Receiver
+        ciphertext = bytes.fromhex(message_doc["receiver_ciphertext"])
+        encrypted_aes_key = bytes.fromhex(message_doc["receiver_encrypted_key"])
+        iv_aes = bytes.fromhex(message_doc["receiver_iv"])
+    else:
+        # Sender
+        ciphertext = bytes.fromhex(message_doc["sender_ciphertext"])
+        encrypted_aes_key = bytes.fromhex(message_doc["sender_encrypted_key"])
+        iv_aes = bytes.fromhex(message_doc["sender_iv"])
+
+    # Derive shared secret using Kyber decapsulation
+    shared_secret = kyber.decapsulate(ciphertext, private_key)
+    key_aes_key = hashlib.sha256(shared_secret).digest()
+
+    #  Decrypt AES key using AES
+    cipher_for_aes_key = Cipher(algorithms.AES(key_aes_key), modes.CBC(iv_aes))
+    decryptor = cipher_for_aes_key.decryptor()
+    padded_aes_key = decryptor.update(encrypted_aes_key) + decryptor.finalize()
+    unpadder = padding.PKCS7(128).unpadder()
+    aes_key = unpadder.update(padded_aes_key) + unpadder.finalize()
+
+    #  Decrypt the actual message
+    iv_message = bytes.fromhex(message_doc["iv_message"])
+    encrypted_message = bytes.fromhex(message_doc["message"])
+
+    cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv_message))
+    decryptor = cipher.decryptor()
+    padded_plaintext = decryptor.update(encrypted_message) + decryptor.finalize()
+
+    unpadder = padding.PKCS7(128).unpadder()
+    plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
+
+    return plaintext.decode()

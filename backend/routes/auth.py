@@ -14,8 +14,11 @@ from security import (
     hash_password,
     check_password,
     encrypt_secret_key,
+    decrypt_secret_key,
+    decrypt_message,
 )
 from firebase_admin import firestore
+
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api")
 kyber_wrapper = KyberWrapper()
@@ -47,11 +50,13 @@ def register():
         db = firestore.client()
         if User.get_by_username(db, username):
             return jsonify({"error": "Username already exists"}), 409
+        
 
         public_key, private_key = kyber_wrapper.generate_keypair()
+
         salt = os.urandom(16)
         iv = os.urandom(16)
-        encrypted_sk = encrypt_secret_key([private_key], password, salt, iv)
+        encrypted_sk = encrypt_secret_key(private_key.hex(), password, salt, iv)
         password_hash = hash_password(password)
 
         new_user = User(
@@ -64,12 +69,30 @@ def register():
         )
 
         user_id = new_user.save(db)
+        # redis session key
+        session_id = secrets.token_hex(16)
+        redis_client = current_app.redis_client
+
         token = jwt.encode(
-            {"user_id": user_id},
+            {"user_id": user_id,
+             "session_id": session_id},
             current_app.config["JWT_SECRET_KEY"],
             algorithm="HS256",
         )
 
+        hex_private_key = private_key.hex()
+        # Store session in Redis
+
+        redis_client.hset(
+            f"session:{session_id}",
+            mapping={
+                "user_id": user_id,
+                "username": username,
+                "private_key": hex_private_key,
+                "created_at": datetime.now(timezone.utc),
+            },
+        )
+        redis_client.expire(f"session:{session_id}", 3600)  # 1 hour expiration
         return (
             jsonify(
                 {
@@ -101,10 +124,40 @@ def login():
         user_doc = User.get_by_username(db, username)
         if not user_doc or not check_password(password, user_doc.password_hash):
             return jsonify({"error": "Invalid username or password"}), 401
+        
+        user_data = user_doc.to_dict()
+        if not user_data:
+            return jsonify({"error": "User data not found"}), 404
+        
+        #encrypted private key 
+        user_private_key = user_data.get("encrypted_secret_key", "")
+        if not user_private_key:
+            return jsonify({"error": "User private key not found"}), 404
+        user_salt = bytes.fromhex(user_data.get("salt", ""))
+        user_iv = bytes.fromhex(user_data.get("iv", ""))
+        decrypted_private_key = decrypt_secret_key(
+            user_private_key, password, user_salt, user_iv
+        )
+        if not decrypted_private_key:
+            return jsonify({"error": "Decryption failed"}), 500
+        
+        # Store session in Redis
+        session_id = secrets.token_hex(16)
+        redis_client = current_app.redis_client
+        redis_client.hset(
+            f"session:{session_id}",
+            mapping={
+                "user_id": user_doc.id,
+                "username": user_data.get("username"),
+                "private_key": decrypted_private_key.hex(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
 
         user_id = user_doc.id
         token = jwt.encode(
-            {"user_id": user_id},
+            {"user_id": user_id,
+             "session_id": session_id},
             current_app.config["JWT_SECRET_KEY"],
             algorithm="HS256",
         )
@@ -139,7 +192,11 @@ def require_auth():
         decoded_token = jwt.decode(
             token, current_app.config["JWT_SECRET_KEY"], algorithms=["HS256"]
         )
+
+        # Set user and session info in g
         g.user_id = decoded_token["user_id"]
+        g.session_id = decoded_token["session_id"]
+        
     except jwt.ExpiredSignatureError:
         return jsonify({"error": "Token has expired"}), 401
     except jwt.InvalidTokenError:
@@ -424,6 +481,7 @@ def get_friend_by_id(friend_id):
 
     except Exception as e:
         return jsonify({"error": f"Failed to fetch friend info: {str(e)}"}), 500
+    
 @auth_bp.route("/friend/<friend_id>/<message>", methods=["POST"])
 def chat_message(friend_id, message):
     try:
@@ -504,8 +562,24 @@ def chat_message(friend_id, message):
 def get_messages(friend_id):
     try:
         db = firestore.client()
-
         current_user_id = g.user_id
+
+        # Get both of'em's data
+        user_doc = db.collection("users").document(current_user_id).get()
+        friend_doc = db.collection("users").document(friend_id).get()
+
+        if not user_doc.exists or not friend_doc.exists:
+            return jsonify({"error": "User or friend not found"}), 404 
+
+        # get user's private key 
+        redis_client = current_app.redis_client
+        session_id = g.session_id
+        private_key_hex = redis_client.hget(f"session:{session_id}", "private_key")
+        if not private_key_hex: 
+            return jsonify({"error": "Session not found"}), 404
+        private_key = bytes.fromhex(private_key_hex)
+
+
 
         messages_ref = db.collection("messages")
         sent_query = messages_ref.where("from", "==", current_user_id).where(
@@ -548,6 +622,10 @@ def get_messages(friend_id):
 
         # Sort messages by timestamp
         all_msgs.sort(key=lambda m: m["timestamp"])
+
+        for eachmsg in all_msgs:
+            decrypted_message = decrypt_message(eachmsg, current_user_id, private_key)
+            eachmsg["message"] = decrypted_message
 
         return jsonify(all_msgs), 200
 

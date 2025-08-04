@@ -9,9 +9,20 @@ import firebase_admin
 from firebase_admin import credentials, firestore, initialize_app
 from dotenv import load_dotenv
 from routes.auth import auth_bp
+import redis
 
 warnings.filterwarnings("ignore")
 load_dotenv()
+
+
+#redis setup
+redis_client = redis.Redis(
+    host=os.getenv('REDIS_HOST', 'localhost'),
+    port=int(os.getenv('REDIS_PORT', 6379)),
+    db=int(os.getenv('REDIS_DB', 0)),
+    decode_responses=True
+)
+
 
 # Firebase initialization
 try:
@@ -40,10 +51,20 @@ except Exception as e:
     print(f"Firebase initialization error: {e}")
     exit(1)
 
+
+try:
+    redis_client.ping()
+    print("Redis client initialized successfully")
+except redis.exceptions.ConnectionError:
+    print("Redis connection failed.")
+    exit(1)
+
+
 # App setup
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 app.config["JWT_SECRET_KEY"] = os.getenv('FLASK_JWT_SECRET')
+app.redis_client = redis_client
 
 # Setup CORS for all API routes with credentials support
 CORS(app, supports_credentials=True, resources={r"/api/*": {"origins": "http://localhost:3000"}})
