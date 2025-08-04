@@ -1,64 +1,55 @@
+import React, { useEffect, useState } from "react";
+import { useParams, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { BsThreeDotsVertical } from "react-icons/bs";
-import "../ComponentsCss/chat.css";
 import { FaPlus } from "react-icons/fa6";
 import { IoMdSend } from "react-icons/io";
-import { Outlet, useParams, useNavigate, useLocation, useNavigation } from "react-router-dom";
 import profileImg from "../assets/profile.png";
 import { AxiosClient } from "../utils/AxiosClient";
-import React, { useEffect, useState } from "react";
-const Spinner = () => (
-  <div className="flex items-center justify-center min-h-[90vh] w-full">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
-  </div>
-);
+import { Formik, Form, Field } from "formik";
+import * as Yup from "yup";
+import toast from "react-hot-toast";
 
 const Chat = () => {
-
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const navigation = useNavigation();
 
   const [info, setInfo] = useState(false);
   const [friends, setFriends] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  
-  const [message, setMessage] = useState("");
-  const token = localStorage.getItem("token");
+  const [isSending, setIsSending] = useState(false);
+  const [isXL, setIsXL] = useState(window.innerWidth >= 1280);
+
+  useEffect(() => {
+    const updateSize = () => setIsXL(window.innerWidth >= 1280);
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
+  }, []);
 
   useEffect(() => {
     setInfo(location.pathname.endsWith("/info"));
   }, [location]);
 
-
   useEffect(() => {
     const fetchFriends = async () => {
+      const token = localStorage.getItem("token");
       if (!token) {
         setIsLoading(false);
         return;
       }
-
       try {
         const response = await AxiosClient.get("/get_friends", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
-
-        if (Array.isArray(response.data)) {
-          setFriends(response.data);
-        } else {
-          console.warn("Unexpected response:", response.data);
-        }
+        setFriends(Array.isArray(response.data) ? response.data : []);
       } catch (error) {
         console.error("Failed to fetch friends:", error);
       } finally {
         setIsLoading(false);
       }
     };
-
     fetchFriends();
-  }, [token]);
+  }, []);
 
   const handleClick = () => {
     if (info) {
@@ -68,65 +59,70 @@ const Chat = () => {
     }
   };
 
-  const sendMessage = async () => {
-  if (!message.trim()) return;
-
-  try {
-    const response = await AxiosClient.post(
-      `/friend/${id}/${encodeURIComponent(message)}`,
-      {},
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
-
-    if (response.status === 200) {
-      setMessage(""); // clear input on success
-    } else {
-      console.error("Failed to send message", response.data);
-    }
-  } catch (error) {
-    console.error("Error sending message", error);
-  }
-};
+  const Spinner = () => (
+    <div className="flex items-center justify-center min-h-[80vh] w-full">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-white"></div>
+    </div>
+  );
 
   const currentFriend = friends.find((friend) => friend.id === id);
 
-  // If the component is still loading, show spinner instead of chat UI
   if (isLoading) {
-    return <Spinner />;
+    return (
+      <div className="flex justify-center items-center min-h-screen text-white">
+        <Spinner />
+      </div>
+    );
   }
 
+  const MessageSchema = Yup.object().shape({
+    message: Yup.string()
+      .trim()
+      .required("Message cannot be empty")
+      .max(500, "Too long"),
+  });
+
+  const sendMessage = async (values, { resetForm }) => {
+    if (!values.message.trim() || !id) return;
+    const token = localStorage.getItem("token");
+    try {
+      setIsSending(true);
+      await AxiosClient.post(`/friend/${id}/${encodeURIComponent(values.message)}`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      resetForm();
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.error || "Failed to send message"
+      );
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   return (
-    <div className="flex">
+    <div className="flex flex-col xl:flex-row gap-1 overflow-hidden w-[102%]">
+      {/* Chat Area */}
       <div
-        className={
-          info
-            ? "min-h-[88vh] p-4  bg-[#100d22] rounded-3xl flex flex-col w-[43vw]"
-            : "min-h-[88vh] p-4  bg-[#100d22] rounded-3xl flex flex-col w-[63vw]"
-        }
+        className={`min-h-[88vh] bg-[#100d22] rounded-3xl flex flex-col ${
+          info && !isXL ? "hidden" : "block"
+        } w-full xl:flex-1`}
       >
         {/* Top Bar */}
         <div className="h-[10%] bg-[#181030] rounded-full flex items-center justify-between pr-6">
           <div className="p-3 flex gap-4">
-            <div className="relative flex">
+            <div className="relative flex cursor-pointer" onClick={handleClick}>
               <img
                 src={profileImg}
-                width="45px"
+                width="45"
+                height="45"
                 alt={currentFriend?.username || "profile"}
+                className="rounded-full object-cover"
               />
-              <p className="text-center relative text-[#12a445] text-[20px] top-6 right-3">
-                ●
-              </p>
+              <p className="text-center relative text-[#12a445] text-[20px] top-6 right-3">●</p>
             </div>
-            <div
-              onClick={handleClick}
-              className="cursor-pointer"
-              title="Toggle Info Panel"
-            >
-              <h1 className="font-sans text-white frndName">
+            <div className="cursor-pointer" onClick={handleClick}>
+              <h1 className="font-sans text-white frndName max-w-xs truncate">
                 {currentFriend?.username || "Select a friend"}
               </h1>
               <p className="text-gray-400 font-light text-xs">
@@ -140,41 +136,55 @@ const Chat = () => {
         </div>
 
         {/* Chat Body */}
-        <div className="h-[70vh] rounded-2xl mt-2 overflow-y-auto">
+        <div className="h-[70vh] rounded-2xl mt-2 overflow-y-auto bg-[#100d22]">
           {!currentFriend && (
             <p className="text-white/80 p-4">Select a friend to start chatting</p>
           )}
+          {/* TODO: Render messages here */}
         </div>
 
         {/* Input Box */}
-        <div className="bg-[#181030] flex relative z-[1] pl-3 h-[10%] items-center rounded-2xl drop-shadow-[0_-6px_16px_rgba(0,0,0,0.4)]">
-          <div className="px-3 py-3 bg-[#251a4c] rounded-xl">
-            <FaPlus size="0.9em" />
-          </div>
-          <input
-              type="text"
-              placeholder="Type a Message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className={`p-2 placeholder-[#3e3757] placeholder-sm ${
-                info ? "w-[29rem]" : "w-[46rem]"
-              } bg-transparent outline-none`}
-              disabled={!currentFriend}
-            />
-
-          <div className="flex justify-end w-[6.5rem]">
-            <button type="button" onClick={sendMessage} disabled={!currentFriend}>
-              <div className="flex px-2 py-3 bg-[#251a4c] rounded-xl gap-2 items-center">
-                <IoMdSend size="1.4rem" />
+        <Formik
+          initialValues={{ message: "" }}
+          validationSchema={MessageSchema}
+          onSubmit={sendMessage}
+        >
+          {({ errors, touched }) => (
+            <Form className="bg-[#181030] flex sm:flex-row relative z-[1] pl-3 h-[4rem] justify-between items-center rounded-2xl gap-2 sm:gap-0">
+              <div className="flex w-full sm:w-auto gap-2 items-center">
+                <div className="px-3 py-3 bg-[#251a4c] rounded-xl shrink-0">
+                  <FaPlus size="0.9em" />
+                </div>
+                <Field
+                  name="message"
+                  type="text"
+                  placeholder="Type a Message"
+                  className="p-2 placeholder-[#3e3757] bg-transparent text-white outline-none flex-grow w-[14.75rem] xl:w-full"
+                  disabled={!currentFriend}
+                />
               </div>
-            </button>
-          </div>
-        </div>
+              <div className="flex justify-end mr-3 w-full sm:w-[6.5rem]">
+                <button
+                  type="submit"
+                  disabled={!currentFriend || isSending}
+                  className={`flex px-4 py-2 rounded-xl gap-2 items-center justify-center w-full ${
+                    isSending ? "bg-blue-400" : "bg-[#251a4c] hover:bg-[#392c5e]"
+                  }`}
+                >
+                  <IoMdSend size="1.4rem" />
+                  {isSending && <span className="text-sm">Sending...</span>}
+                </button>
+              </div>
+            </Form>
+          )}
+        </Formik>
       </div>
 
-      {/* Info Panel if open */}
-      {info && ( 
-        <div>
+      {/* Info Panel */}
+      {info && (
+        <div
+          className="w-full xl:w-[23rem] mt-4 xl:mt-0 xl:ml-4 rounded-3xl overflow-auto min-h-[80vh]"
+        >
           <Outlet />
         </div>
       )}

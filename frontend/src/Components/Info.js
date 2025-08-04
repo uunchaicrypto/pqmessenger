@@ -1,10 +1,9 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import profileImg from "../assets/profile.png";
 import { AxiosClient } from "../utils/AxiosClient";
 import '../ComponentsCss/animation.css';
-
-// Reusable Spinner component
+import { IoChevronBackCircleSharp } from "react-icons/io5";
 const Spinner = () => (
   <div className="flex items-center justify-center min-h-[80vh] w-full">
     <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-white"></div>
@@ -13,9 +12,11 @@ const Spinner = () => (
 
 const Info = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [friend, setFriend] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const isMobile = window.innerWidth < 768;
 
   const fetchFriendInfo = useCallback(async () => {
     if (!id) return;
@@ -42,9 +43,15 @@ const Info = () => {
     fetchFriendInfo();
   }, [fetchFriendInfo]);
 
+  const commonClasses = "bg-[#100d22] p-6 rounded-3xl";
+
+  const wrapperClass = isMobile
+    ? `fixed inset-0 z-50 ${commonClasses}`
+    : `w-[22vw] ml-1 min-h-[90vh] ${commonClasses}`;
+
   if (loading) {
     return (
-      <div className="w-[25vw] bg-[#100d22] pt-10 flex ml-3 p-8 rounded-3xl min-h-[70vh]">
+      <div className={wrapperClass}>
         <Spinner />
       </div>
     );
@@ -52,7 +59,7 @@ const Info = () => {
 
   if (error || !friend) {
     return (
-      <div className="w-[25vw] bg-[#100d22] pt-10 flex flex-col items-center justify-center ml-3 p-8 rounded-3xl min-h-[90vh]">
+      <div className={wrapperClass + " flex flex-col items-center justify-center"}>
         <p className="text-white mb-4">{error || "No info available."}</p>
         <button
           onClick={fetchFriendInfo}
@@ -65,7 +72,16 @@ const Info = () => {
   }
 
   return (
-    <div className="w-[25vw] bg-[#100d22] pt-10 flex ml-3 p-8 rounded-3xl min-h-[90vh]">
+    <div className={wrapperClass}>
+      {isMobile && (
+        <button
+          className="text-white mb-4"
+          onClick={() => navigate(-1)} // go back to chat
+        >
+          <IoChevronBackCircleSharp  size={"1.8rem"}/>
+        </button>
+      )}
+
       <div
         className="info flex items-center mx-auto flex-col opacity-0 animate-fadeIn"
         style={{ animationFillMode: "forwards", animationDuration: "0.5s" }}
