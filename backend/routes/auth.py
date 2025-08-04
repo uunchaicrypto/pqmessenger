@@ -56,7 +56,7 @@ def register():
 
         salt = os.urandom(16)
         iv = os.urandom(16)
-        encrypted_sk = encrypt_secret_key(private_key.hex(), password, salt, iv)
+        encrypted_sk = encrypt_secret_key(private_key, password, salt, iv)
         password_hash = hash_password(password)
 
         new_user = User(
@@ -80,7 +80,6 @@ def register():
             algorithm="HS256",
         )
 
-        hex_private_key = private_key.hex()
         # Store session in Redis
 
         redis_client.hset(
@@ -88,7 +87,7 @@ def register():
             mapping={
                 "user_id": user_id,
                 "username": username,
-                "private_key": hex_private_key,
+                "private_key": private_key,
                 "created_at": datetime.now(timezone.utc),
             },
         )
@@ -149,7 +148,7 @@ def login():
             mapping={
                 "user_id": user_doc.id,
                 "username": user_data.get("username"),
-                "private_key": decrypted_private_key.hex(),
+                "private_key": decrypted_private_key,
                 "created_at": datetime.now(timezone.utc).isoformat(),
             },
         )
@@ -492,7 +491,7 @@ def chat_message(friend_id, message):
         user_doc = db.collection("users").document(g.user_id).get()
         friend_doc = db.collection("users").document(friend_id).get()
 
-        print("data gotten")
+        # print("data gotten")
 
         if not user_doc.exists or not friend_doc.exists:
             return jsonify({"error": "User or friend not found"}), 404
@@ -518,7 +517,7 @@ def chat_message(friend_id, message):
         # print("message encrypted")
 
         # print("receiver pk type:", type(receiver_pk))
-    #    Wrap the AES key for receiver
+            #  Wrap the AES key for receiver
         ct_receiver, ss_receiver = kyber.encapsulate(receiver_pk)
         key_receiver = hashlib.sha256(ss_receiver).digest()
         iv_receiver = secrets.token_bytes(16)
@@ -544,6 +543,18 @@ def chat_message(friend_id, message):
         encrypted_aes_key_sender = encryptor_sender.update(padded_aes_key_s) + encryptor_sender.finalize()
         # print("sender's aes key encrypted")
         #  Store in database
+        print('aes key:', aes_key)
+        print("Encrypting for receiver:")
+        print("Receiver public key:", receiver_pk.hex())
+        print("Receiver ct:", ct_receiver.hex())
+        print("Receiver ss:", ss_receiver.hex())
+        print("Receiver IV:", iv_receiver.hex())
+        print("Encrypting for sender:")
+        print("Sender public key:", sender_pk.hex()) 
+        print("Sender ct:", ct_sender.hex())
+        print("Sender ss:", ss_sender.hex())
+        print("Sender IV:", iv_sender.hex())
+
         db.collection("messages").add({
             "from": g.user_id,
             "to": friend_id,
@@ -561,6 +572,8 @@ def chat_message(friend_id, message):
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
+        
+
         return jsonify({"message": "Secure message sent!"}), 200
 
     except Exception as e:
@@ -574,10 +587,12 @@ def get_messages(friend_id):
     try:
         db = firestore.client()
         current_user_id = g.user_id
+        print("got user id:", current_user_id)
 
         # Get both of'em's data
         user_doc = db.collection("users").document(current_user_id).get()
         friend_doc = db.collection("users").document(friend_id).get()
+        print("both user docs gotten    ")
 
         if not user_doc.exists or not friend_doc.exists:
             return jsonify({"error": "User or friend not found"}), 404 
@@ -588,9 +603,10 @@ def get_messages(friend_id):
         private_key_hex = redis_client.hget(f"session:{session_id}", "private_key")
         if not private_key_hex: 
             return jsonify({"error": "Session not found"}), 404
+        print("user private key gotten  ")
 
         private_key = bytes.fromhex(private_key_hex)
-
+        print("user private key converted from hex to bytes")
 
         messages_ref = db.collection("messages")
         sent_query = messages_ref.where("from", "==", current_user_id).where(
@@ -599,10 +615,11 @@ def get_messages(friend_id):
         recv_query = messages_ref.where("from", "==", friend_id).where(
             "to", "==", current_user_id
         )
+        print("queries created")
 
         sent_msgs = sent_query.stream()
         recv_msgs = recv_query.stream()
-
+        print("messages fetched")
         all_msgs = []
 
         for msg in sent_msgs:
@@ -622,6 +639,7 @@ def get_messages(friend_id):
                 "timestamp": data["timestamp"],
             }
             )
+            print("sent messages processed")
 
         for msg in recv_msgs:
             data = msg.to_dict()
@@ -640,14 +658,18 @@ def get_messages(friend_id):
                 "timestamp": data["timestamp"],
             }
             )
+            print("received messages processed")
 
         # Sort messages by timestamp
         all_msgs.sort(key=lambda m: m["timestamp"])
+        
+        print("messages sorted by timestamp")
 
         for eachmsg in all_msgs:
             decrypted_message = decrypt_message(eachmsg, current_user_id, private_key)
             eachmsg["message"] = decrypted_message
 
+        print("messages decrypted")
         return jsonify(all_msgs), 200
 
     except Exception as e:
