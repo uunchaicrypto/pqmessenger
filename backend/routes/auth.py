@@ -53,6 +53,8 @@ def register():
         
 
         public_key, private_key = kyber_wrapper.generate_keypair()
+        # print("Public Key:", public_key)
+        # print("Private Key:", private_key)
 
         salt = os.urandom(16)
         iv = os.urandom(16)
@@ -140,6 +142,8 @@ def login():
         if not decrypted_private_key:
             return jsonify({"error": "Decryption failed"}), 500
         
+        # print("Decrypted private key:", decrypted_private_key)
+
         # Store session in Redis
         session_id = secrets.token_hex(16)
         redis_client = current_app.redis_client
@@ -543,17 +547,17 @@ def chat_message(friend_id, message):
         encrypted_aes_key_sender = encryptor_sender.update(padded_aes_key_s) + encryptor_sender.finalize()
         # print("sender's aes key encrypted")
         #  Store in database
-        print('aes key:', aes_key)
-        print("Encrypting for receiver:")
-        print("Receiver public key:", receiver_pk.hex())
-        print("Receiver ct:", ct_receiver.hex())
-        print("Receiver ss:", ss_receiver.hex())
-        print("Receiver IV:", iv_receiver.hex())
-        print("Encrypting for sender:")
-        print("Sender public key:", sender_pk.hex()) 
-        print("Sender ct:", ct_sender.hex())
-        print("Sender ss:", ss_sender.hex())
-        print("Sender IV:", iv_sender.hex())
+        # print('aes key:', aes_key)
+        # print("Encrypting for receiver:")
+        # print("Receiver public key:", receiver_pk.hex())
+        # print("Receiver ct:", ct_receiver.hex())
+        # print("Receiver ss:", ss_receiver.hex())
+        # print("Receiver IV:", iv_receiver.hex())
+        # print("Encrypting for sender:")
+        # print("Sender public key:", sender_pk.hex()) 
+        # print("Sender ct:", ct_sender.hex())
+        # print("Sender ss:", ss_sender.hex())
+        # print("Sender IV:", iv_sender.hex())
 
         db.collection("messages").add({
             "from": g.user_id,
@@ -587,12 +591,12 @@ def get_messages(friend_id):
     try:
         db = firestore.client()
         current_user_id = g.user_id
-        print("got user id:", current_user_id)
+        # print("got user id:", current_user_id)
 
         # Get both of'em's data
         user_doc = db.collection("users").document(current_user_id).get()
         friend_doc = db.collection("users").document(friend_id).get()
-        print("both user docs gotten    ")
+        # print("both user docs gotten    ")
 
         if not user_doc.exists or not friend_doc.exists:
             return jsonify({"error": "User or friend not found"}), 404 
@@ -603,10 +607,11 @@ def get_messages(friend_id):
         private_key_hex = redis_client.hget(f"session:{session_id}", "private_key")
         if not private_key_hex: 
             return jsonify({"error": "Session not found"}), 404
-        print("user private key gotten  ")
+        # print("user private key gotten  ")
+        # print(private_key_hex)
 
         private_key = bytes.fromhex(private_key_hex)
-        print("user private key converted from hex to bytes")
+        # print("user private key converted from hex to bytes")
 
         messages_ref = db.collection("messages")
         sent_query = messages_ref.where("from", "==", current_user_id).where(
@@ -615,11 +620,11 @@ def get_messages(friend_id):
         recv_query = messages_ref.where("from", "==", friend_id).where(
             "to", "==", current_user_id
         )
-        print("queries created")
+        # print("queries created")
 
         sent_msgs = sent_query.stream()
         recv_msgs = recv_query.stream()
-        print("messages fetched")
+        # print("messages fetched")
         all_msgs = []
 
         for msg in sent_msgs:
@@ -639,7 +644,7 @@ def get_messages(friend_id):
                 "timestamp": data["timestamp"],
             }
             )
-            print("sent messages processed")
+            # print("sent messages processed")
 
         for msg in recv_msgs:
             data = msg.to_dict()
@@ -658,18 +663,18 @@ def get_messages(friend_id):
                 "timestamp": data["timestamp"],
             }
             )
-            print("received messages processed")
+            # print("received messages processed")
 
         # Sort messages by timestamp
         all_msgs.sort(key=lambda m: m["timestamp"])
-        
-        print("messages sorted by timestamp")
+
+        # print("messages sorted by timestamp")
 
         for eachmsg in all_msgs:
             decrypted_message = decrypt_message(eachmsg, current_user_id, private_key)
             eachmsg["message"] = decrypted_message
 
-        print("messages decrypted")
+        # print("messages decrypted")
         return jsonify(all_msgs), 200
 
     except Exception as e:

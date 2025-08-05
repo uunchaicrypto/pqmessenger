@@ -16,6 +16,7 @@ dummyMessage = "Hello Fucking WOrld"
 
 # Step 1: Generate keys
 pk_hex, sk_hex = kyber.generate_keypair()
+
 # print("Public Key:", pk_hex)
 # print("Secret Key:", sk_hex)
 pk = bytes.fromhex(pk_hex)

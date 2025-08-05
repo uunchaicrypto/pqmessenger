@@ -91,14 +91,14 @@ def decrypt_message(message_doc: dict, current_user_id, private_key):
         encrypted_aes_key = bytes.fromhex(message_doc.get("sender_encrypted_key"))
         iv_aes = bytes.fromhex(message_doc.get("sender_iv"))
 
-    print("Decapsulating with private key")
-    print("Ciphertext:", ciphertext.hex())
+    # print("Decapsulating with private key")
+    # print("Ciphertext:", ciphertext.hex())
 
     # Derive shared secret using Kyber decapsulation
     shared_secret = kyber.decapsulate(ciphertext, private_key)
     key_aes_key = hashlib.sha256(shared_secret).digest()
-    print("Shared Secret:", shared_secret.hex())
-    print("Derived Key:", key_aes_key.hex())
+    # print("Shared Secret:", shared_secret.hex())
+    # print("Derived Key:", key_aes_key.hex())
 
     # Decrypt AES key using AES
     cipher_for_aes_key = Cipher(algorithms.AES(key_aes_key), modes.CBC(iv_aes))

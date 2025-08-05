@@ -51,6 +51,38 @@ const Chat = () => {
     fetchFriends();
   }, []);
 
+  // // Fetch messages for debugging - when friend ID changes
+  // useEffect(() => {
+  //   const fetchMessages = async () => {
+  //     if (!id) {
+  //       console.log("No friend ID selected for messages");
+  //       return;
+  //     }
+
+  //     const token = localStorage.getItem("token");
+  //     if (!token) {
+  //       console.log("No token found for message fetch");
+  //       return;
+  //     }
+
+  //     try {
+  //       console.log(`🔍 Fetching messages for friend ID: ${id}`);
+  //       const response = await AxiosClient.get(`/get_messages/${id}`, {
+  //         headers: { Authorization: `Bearer ${token}` },
+  //       });
+        
+  //       console.log("✅ Messages fetched successfully:", response.data);
+  //       console.log("📊 Number of messages:", response.data?.length || 0);
+  //     } catch (error) {
+  //       console.error("❌ Failed to fetch messages:", error);
+  //       console.error("🔍 Error response:", error.response?.data);
+  //       console.error("🔍 Error status:", error.response?.status);
+  //     }
+  //   };
+
+  //   fetchMessages();
+  // }, [id]);
+
   const handleClick = () => {
     if (info) {
       navigate(`/messages/${id}`);
