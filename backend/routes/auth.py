@@ -517,7 +517,7 @@ def chat_message(friend_id, message):
         # print("message encrypted")
 
         # print("receiver pk type:", type(receiver_pk))
-            #  Wrap the AES key for receiver
+        #  Wrap the AES key for receiver
         ct_receiver, ss_receiver = kyber.encapsulate(receiver_pk)
         key_receiver = hashlib.sha256(ss_receiver).digest()
         iv_receiver = secrets.token_bytes(16)
@@ -530,7 +530,7 @@ def chat_message(friend_id, message):
         encrypted_aes_key_receiver = encryptor_receiver.update(padded_aes_key_r) + encryptor_receiver.finalize()
         # print("receiver's aes key encrypted")
 
-    #    Wrap the AES key for sender
+        # Wrap the AES key for sender
         ct_sender, ss_sender = kyber.encapsulate(sender_pk)
         key_sender = hashlib.sha256(ss_sender).digest()
         iv_sender = secrets.token_bytes(16)
