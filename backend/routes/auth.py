@@ -50,11 +50,8 @@ def register():
         db = firestore.client()
         if User.get_by_username(db, username):
             return jsonify({"error": "Username already exists"}), 409
-        
 
         public_key, private_key = kyber_wrapper.generate_keypair()
-        # print("Public Key:", public_key)
-        # print("Private Key:", private_key)
 
         salt = os.urandom(16)
         iv = os.urandom(16)
@@ -71,44 +68,33 @@ def register():
         )
 
         user_id = new_user.save(db)
-        # redis session key
+
+        # Session ID
         session_id = secrets.token_hex(16)
         redis_client = current_app.redis_client
 
+        # Store session in Redis (manually, with string values)
+        redis_client.hset(f"session:{session_id}", "user_id", str(user_id))
+        redis_client.hset(f"session:{session_id}", "username", username)
+        redis_client.hset(f"session:{session_id}", "private_key", private_key.hex())
+        redis_client.hset(f"session:{session_id}", "created_at", datetime.now(timezone.utc).isoformat())
+        redis_client.expire(f"session:{session_id}", 3600)
+
         token = jwt.encode(
-            {"user_id": user_id,
-             "session_id": session_id},
+            {"user_id": user_id, "session_id": session_id},
             current_app.config["JWT_SECRET_KEY"],
             algorithm="HS256",
         )
 
-        # Store session in Redis
-
-        redis_client.hset(
-            f"session:{session_id}",
-            mapping={
-                "user_id": user_id,
-                "username": username,
-                "private_key": private_key,
-                "created_at": datetime.now(timezone.utc),
-            },
-        )
-        redis_client.expire(f"session:{session_id}", 3600)  # 1 hour expiration
-        return (
-            jsonify(
-                {
-                    "message": "User registered successfully",
-                    "user_id": user_id,
-                    "username": new_user.username,
-                    "token": token,
-                }
-            ),
-            201,
-        )
+        return jsonify({
+            "message": "User registered successfully",
+            "user_id": user_id,
+            "username": new_user.username,
+            "token": token,
+        }), 201
 
     except Exception as e:
         return jsonify({"error": f"Registration failed: {str(e)}"}), 500
-
 
 # --- Login ---
 @auth_bp.route("/login", methods=["POST"])
@@ -125,15 +111,15 @@ def login():
         user_doc = User.get_by_username(db, username)
         if not user_doc or not check_password(password, user_doc.password_hash):
             return jsonify({"error": "Invalid username or password"}), 401
-        
+
         user_data = user_doc.to_dict()
         if not user_data:
             return jsonify({"error": "User data not found"}), 404
-        
-        #encrypted private key 
+
         user_private_key = user_data.get("encrypted_secret_key", "")
         if not user_private_key:
             return jsonify({"error": "User private key not found"}), 404
+
         user_salt_hex = user_data.get("salt", "")
         user_iv_hex = user_data.get("iv", "")
         decrypted_private_key = decrypt_secret_key(
@@ -141,26 +127,19 @@ def login():
         )
         if not decrypted_private_key:
             return jsonify({"error": "Decryption failed"}), 500
-        
-        # print("Decrypted private key:", decrypted_private_key)
 
         # Store session in Redis
         session_id = secrets.token_hex(16)
         redis_client = current_app.redis_client
-        redis_client.hset(
-            f"session:{session_id}",
-            mapping={
-                "user_id": user_doc.id,
-                "username": user_data.get("username"),
-                "private_key": decrypted_private_key,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            },
-        )
 
-        user_id = user_doc.id
+        redis_client.hset(f"session:{session_id}", "user_id", str(user_doc.id))
+        redis_client.hset(f"session:{session_id}", "username", user_data.get("username"))
+        redis_client.hset(f"session:{session_id}", "private_key", decrypted_private_key)  # No .hex()
+        redis_client.hset(f"session:{session_id}", "created_at", datetime.now(timezone.utc).isoformat())
+        redis_client.expire(f"session:{session_id}", 3600)
+
         token = jwt.encode(
-            {"user_id": user_id,
-             "session_id": session_id},
+            {"user_id": user_doc.id, "session_id": session_id},
             current_app.config["JWT_SECRET_KEY"],
             algorithm="HS256",
         )
@@ -169,7 +148,6 @@ def login():
 
     except Exception as e:
         return jsonify({"error": f"Login failed: {str(e)}"}), 500
-
 
 # --- Middleware ---
 @auth_bp.before_request

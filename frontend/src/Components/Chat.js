@@ -8,7 +8,7 @@ import { AxiosClient } from "../utils/AxiosClient";
 import { Formik, Form, Field } from "formik";
 import * as Yup from "yup";
 import toast from "react-hot-toast";
-
+import { Scrollbar } from "react-scrollbars-custom";
 const Chat = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -16,6 +16,7 @@ const Chat = () => {
 
   const [info, setInfo] = useState(false);
   const [friends, setFriends] = useState([]);
+  const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [isXL, setIsXL] = useState(window.innerWidth >= 1280);
@@ -51,37 +52,24 @@ const Chat = () => {
     fetchFriends();
   }, []);
 
-  // // Fetch messages for debugging - when friend ID changes
-  // useEffect(() => {
-  //   const fetchMessages = async () => {
-  //     if (!id) {
-  //       console.log("No friend ID selected for messages");
-  //       return;
-  //     }
+  useEffect(() => {
+    const fetchMessages = async () => {
+      if (!id) return;
+      const token = localStorage.getItem("token");
+      if (!token) return;
 
-  //     const token = localStorage.getItem("token");
-  //     if (!token) {
-  //       console.log("No token found for message fetch");
-  //       return;
-  //     }
+      try {
+        const response = await AxiosClient.get(`/get_messages/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setMessages(response.data);
+      } catch (error) {
+        console.error("Failed to fetch messages:", error);
+      }
+    };
 
-  //     try {
-  //       console.log(`🔍 Fetching messages for friend ID: ${id}`);
-  //       const response = await AxiosClient.get(`/get_messages/${id}`, {
-  //         headers: { Authorization: `Bearer ${token}` },
-  //       });
-        
-  //       console.log("✅ Messages fetched successfully:", response.data);
-  //       console.log("📊 Number of messages:", response.data?.length || 0);
-  //     } catch (error) {
-  //       console.error("❌ Failed to fetch messages:", error);
-  //       console.error("🔍 Error response:", error.response?.data);
-  //       console.error("🔍 Error status:", error.response?.status);
-  //     }
-  //   };
-
-  //   fetchMessages();
-  // }, [id]);
+    fetchMessages();
+  }, [id]);
 
   const handleClick = () => {
     if (info) {
@@ -119,14 +107,21 @@ const Chat = () => {
     const token = localStorage.getItem("token");
     try {
       setIsSending(true);
-      await AxiosClient.post(`/friend/${id}/${encodeURIComponent(values.message)}`, {}, {
+      await AxiosClient.post(
+        `/friend/${id}/${encodeURIComponent(values.message)}`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      resetForm();
+      // Optionally, fetch messages again to update the chat
+      const response = await AxiosClient.get(`/get_messages/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      resetForm();
+      setMessages(response.data);
     } catch (error) {
-      toast.error(
-        error?.response?.data?.error || "Failed to send message"
-      );
+      toast.error(error?.response?.data?.error || "Failed to send message");
     } finally {
       setIsSending(false);
     }
@@ -151,7 +146,9 @@ const Chat = () => {
                 alt={currentFriend?.username || "profile"}
                 className="rounded-full object-cover"
               />
-              <p className="text-center relative text-[#12a445] text-[20px] top-6 right-3">●</p>
+              <p className="text-center relative text-[#12a445] text-[20px] top-6 right-3">
+                ●
+              </p>
             </div>
             <div className="cursor-pointer" onClick={handleClick}>
               <h1 className="font-sans text-white frndName max-w-xs truncate">
@@ -168,12 +165,40 @@ const Chat = () => {
         </div>
 
         {/* Chat Body */}
-        <div className="h-[70vh] rounded-2xl mt-2 overflow-y-auto bg-[#100d22]">
-          {!currentFriend && (
-            <p className="text-white/80 p-4">Select a friend to start chatting</p>
-          )}
-          {/* TODO: Render messages here */}
-        </div>
+        {/* Chat Body with Custom Scrollbar */}
+        <Scrollbar
+          style={{ height: "70vh" }}
+          className="rounded-2xl mt-2 bg-[#100d22]"
+        >
+          <div className="p-2">
+            {!currentFriend && (
+              <p className="text-white/80 p-4">
+                Select a friend to start chatting
+              </p>
+            )}
+            {messages.length === 0 && (
+              <p className="text-white/80 p-4">No messages yet.</p>
+            )}
+            {messages.map((msg, index) => (
+              <div
+                key={index}
+                className={`p-4 ${
+                  msg.from === id ? "text-left" : "text-right"
+                }`}
+              >
+                <div
+                  className={`inline-block rounded-lg p-2 ${
+                    msg.from === id
+                      ? "bg-gray-300 text-black"
+                      : " bg-blue-500 text-white"
+                  }`}
+                >
+                  {msg.message}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Scrollbar>
 
         {/* Input Box */}
         <Formik
@@ -200,7 +225,9 @@ const Chat = () => {
                   type="submit"
                   disabled={!currentFriend || isSending}
                   className={`flex px-4 py-2 rounded-xl gap-2 items-center justify-center w-full ${
-                    isSending ? "bg-blue-400" : "bg-[#251a4c] hover:bg-[#392c5e]"
+                    isSending
+                      ? "bg-blue-400"
+                      : "bg-[#251a4c] hover:bg-[#392c5e]"
                   }`}
                 >
                   <IoMdSend size="1.4rem" />
@@ -214,9 +241,7 @@ const Chat = () => {
 
       {/* Info Panel */}
       {info && (
-        <div
-          className="w-full xl:w-[23rem] mt-4 xl:mt-0 xl:ml-4 rounded-3xl overflow-auto min-h-[80vh]"
-        >
+        <div className="w-full xl:w-[23rem] mt-4 xl:mt-0 xl:ml-4 rounded-3xl overflow-auto min-h-[80vh]">
           <Outlet />
         </div>
       )}
