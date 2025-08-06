@@ -76,7 +76,7 @@ def register():
         # Store session in Redis (manually, with string values)
         redis_client.hset(f"session:{session_id}", "user_id", str(user_id))
         redis_client.hset(f"session:{session_id}", "username", username)
-        redis_client.hset(f"session:{session_id}", "private_key", private_key.hex())
+        redis_client.hset(f"session:{session_id}", "private_key", private_key)
         redis_client.hset(f"session:{session_id}", "created_at", datetime.now(timezone.utc).isoformat())
         redis_client.expire(f"session:{session_id}", 3600)
 
