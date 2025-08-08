@@ -46,7 +46,7 @@ function App() {
   ];
 
   return (
-    <main className="pt-10 pb-4 min-h-screen flex flex-col md:flex-row text-white bg-[#030018] max-w-screen">
+    <main className="pt-10 pb-4 min-h-screen flex flex-col md:flex-row text-white bg-[#030018] max-w-screen overflow-hidden">
       
       {/* Sidebar for md+ screens */}
       <aside className="hidden md:flex flex-col justify-between bg-[#030018] min-h-[90vh] 

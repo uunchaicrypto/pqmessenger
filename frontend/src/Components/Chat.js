@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Outlet, useNavigate, useLocation } from "react-router-dom";
+import { useParams, Outlet, useNavigate, useLocation, useOutletContext } from "react-router-dom";
 import { BsThreeDotsVertical } from "react-icons/bs";
 import { FaPlus } from "react-icons/fa6";
 import { IoMdSend } from "react-icons/io";
@@ -13,6 +13,9 @@ const Chat = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  // Get parent callback from Outlet context
+  const outletContext = useOutletContext();
+  const handleLatestMessage = outletContext?.handleLatestMessage;
 
   const [info, setInfo] = useState(false);
   const [friends, setFriends] = useState([]);
@@ -57,25 +60,25 @@ const Chat = () => {
     const token = localStorage.getItem("token");
     if (!token) return;
     const fetchMessages = async () => {
-
       try {
         const response = await AxiosClient.get(`/get_messages/${id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setMessages(response.data);
+        if (handleLatestMessage && Array.isArray(response.data) && response.data.length > 0) {
+          const lastMsg = response.data[response.data.length - 1];
+          handleLatestMessage(id, lastMsg.message);
+        } else if (handleLatestMessage) {
+          handleLatestMessage(id, "Start a conversation");
+        }
       } catch (error) {
         console.error("Failed to fetch messages:", error);
       }
     };
-    
     const interval = setInterval(fetchMessages, 3000);
-
-    
-
     fetchMessages();
-
     return () => clearInterval(interval);
-  }, [id]);
+  }, [id, handleLatestMessage]);
 
   const handleClick = () => {
     if (info) {

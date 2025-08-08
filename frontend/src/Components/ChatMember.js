@@ -15,6 +15,10 @@ const ChatMember = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [friends, setFriends] = useState([]);
   const [friendsLoading, setFriendsLoading] = useState(true);
+  const [latestMessages, setLatestMessages] = useState({});
+  const handleLatestMessage = (friendId, message) => {
+    setLatestMessages(prev => ({ ...prev, [friendId]: message }));
+  };
   const token = localStorage.getItem("token");
 
   const { id } = useParams();
@@ -81,7 +85,7 @@ const ChatMember = () => {
   };
 
   return (
-    <div className="flex flex-col xl:flex-row gap-4 px-2 ">
+  <div className="flex flex-col xl:flex-row gap-4 px-2 ">
       {/* Friend List Section */}
       <motion.section
         className={`w-full xl:w-[25%] min-h-[88vh] px-4 py-4 bg-[#100d22] rounded-3xl
@@ -118,7 +122,7 @@ const ChatMember = () => {
                       {friend.username}
                     </h1>
                     <p className="text-white/60 max-w-[150px] truncate">
-                      Start a conversation
+                      {latestMessages[friend.id] || "Start a conversation"}
                     </p>
                   </div>
                 </div>
@@ -171,7 +175,7 @@ const ChatMember = () => {
         animate={popUpVariant.animate}
         transition={popUpVariant.transition}
       >
-        <Outlet />
+  <Outlet context={{ handleLatestMessage }} />
       </motion.div>
     </div>
   );
