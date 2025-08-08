@@ -53,10 +53,10 @@ const Chat = () => {
   }, []);
 
   useEffect(() => {
+    if (!id) return;
+    const token = localStorage.getItem("token");
+    if (!token) return;
     const fetchMessages = async () => {
-      if (!id) return;
-      const token = localStorage.getItem("token");
-      if (!token) return;
 
       try {
         const response = await AxiosClient.get(`/get_messages/${id}`, {
@@ -67,8 +67,14 @@ const Chat = () => {
         console.error("Failed to fetch messages:", error);
       }
     };
+    
+    const interval = setInterval(fetchMessages, 3000);
+
+    
 
     fetchMessages();
+
+    return () => clearInterval(interval);
   }, [id]);
 
   const handleClick = () => {
@@ -129,7 +135,6 @@ const Chat = () => {
 
   return (
     <div className="flex flex-col xl:flex-row gap-1 overflow-hidden w-[102%]">
-      {/* Chat Area */}
       <div
         className={`min-h-[88vh] bg-[#100d22] rounded-3xl flex flex-col ${
           info && !isXL ? "hidden" : "block"
@@ -159,13 +164,8 @@ const Chat = () => {
               </p>
             </div>
           </div>
-          <div className="px-2 py-3 bg-[#251a4c] rounded-xl">
-            <BsThreeDotsVertical />
-          </div>
         </div>
 
-        {/* Chat Body */}
-        {/* Chat Body with Custom Scrollbar */}
         <Scrollbar
           style={{ height: "70vh" }}
           className="rounded-2xl mt-2 bg-[#100d22]"
@@ -208,7 +208,7 @@ const Chat = () => {
         >
           {({ errors, touched }) => (
             <Form className="bg-[#181030] flex sm:flex-row relative z-[1] pl-3 h-[4rem] justify-between items-center rounded-2xl gap-2 sm:gap-0">
-              <div className="flex w-full sm:w-auto gap-2 items-center">
+              <div className="flex w-full gap-2 items-center">
                 <div className="px-3 py-3 bg-[#251a4c] rounded-xl shrink-0">
                   <FaPlus size="0.9em" />
                 </div>
@@ -216,11 +216,11 @@ const Chat = () => {
                   name="message"
                   type="text"
                   placeholder="Type a Message"
-                  className="p-2 placeholder-[#3e3757] bg-transparent text-white outline-none flex-grow w-[14.75rem] xl:w-full"
+                  className="p-2 placeholder-[#3e3757] bg-transparent text-white outline-none flex-grow w-full"
                   disabled={!currentFriend}
                 />
               </div>
-              <div className="flex justify-end mr-3 w-full sm:w-[6.5rem]">
+              <div className="flex justify-end mr-3 w-[6.5rem]">
                 <button
                   type="submit"
                   disabled={!currentFriend || isSending}

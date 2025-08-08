@@ -14,6 +14,8 @@ const Login = () => {
   const [pageaside, setPageaside] = useState("Login");
   const [darkMode, setDarkMode] = useState(false);
   const [loading, setloading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
   const { fetchUserProfile, user } = UserAuth();
 
@@ -233,7 +235,7 @@ const Login = () => {
                   <div className="w-full max-w-sm flex flex-col relative">
                     <Field
                       name="password"
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       placeholder="Password"
                       className={`px-4 py-2 w-full rounded-md pr-10 ${
                         darkMode
@@ -241,11 +243,25 @@ const Login = () => {
                           : ""
                       }`}
                     />
-                    <FaLock
-                      className="absolute right-3 top-3"
-                      color={darkMode ? "#bbbbbb" : "#959595"}
-                      size="1.2em"
-                    />
+                    {showPassword ? (
+                      <span
+                        className="absolute right-3 top-3 cursor-pointer"
+                        onClick={() => setShowPassword(false)}
+                      >
+                        {/* Eye icon */}
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke={darkMode ? "#bbbbbb" : "#959595"} className="w-5 h-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12s3.75-7.5 9.75-7.5 9.75 7.5 9.75 7.5-3.75 7.5-9.75 7.5S2.25 12 2.25 12z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </span>
+                    ) : (
+                      <FaLock
+                        className="absolute right-3 top-3 cursor-pointer"
+                        color={darkMode ? "#bbbbbb" : "#959595"}
+                        size="1.2em"
+                        onClick={() => setShowPassword(true)}
+                      />
+                    )}
                     <ErrorMessage
                       name="password"
                       component="div"
@@ -258,7 +274,7 @@ const Login = () => {
                     <div className="w-full max-w-sm flex flex-col relative">
                       <Field
                         name="confirmPassword"
-                        type="password"
+                        type={showConfirmPassword ? "text" : "password"}
                         placeholder="Confirm Password"
                         className={`px-4 py-2 w-full rounded-md pr-10 ${
                           darkMode
@@ -266,11 +282,25 @@ const Login = () => {
                             : ""
                         }`}
                       />
-                      <MdEmail
-                        className="absolute right-3 top-3"
-                        color={darkMode ? "#bbbbbb" : "#959595"}
-                        size="1.5em"
-                      />
+                      {showConfirmPassword ? (
+                        <span
+                          className="absolute right-3 top-3 cursor-pointer"
+                          onClick={() => setShowConfirmPassword(false)}
+                        >
+                          {/* Eye icon */}
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke={darkMode ? "#bbbbbb" : "#959595"} className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12s3.75-7.5 9.75-7.5 9.75 7.5 9.75 7.5-3.75 7.5-9.75 7.5S2.25 12 2.25 12z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </span>
+                      ) : (
+                        <FaLock
+                          className="absolute right-3 top-3 cursor-pointer"
+                          color={darkMode ? "#bbbbbb" : "#959595"}
+                          size="1.2em"
+                          onClick={() => setShowConfirmPassword(true)}
+                        />
+                      )}
                       <ErrorMessage
                         name="confirmPassword"
                         component="div"
