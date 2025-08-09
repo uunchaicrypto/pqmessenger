@@ -105,7 +105,7 @@ flowchart TD
     D --> E[💬 Select Friend]
     E --> F[💻 Chat Window]
     F --> G[📨 Send/Receive Message]
-    G --> H[🔐 Kyber Encryption]
+    G --> H[🔐 Kyber Encryption / Decryption]
     H --> I[☁️ Firestore Storage]
 ```
 
