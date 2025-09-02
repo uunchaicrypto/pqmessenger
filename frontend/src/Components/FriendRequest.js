@@ -84,8 +84,8 @@ const FriendRequest = () => {
   };
 
   return (
-    <div className="flex">
-      <section className="w-[22vw] min-h-[90vh] px-4 py-4 bg-[#100d22] rounded-3xl">
+    <div className="flex ">
+      <section className="xl:w-[22vw] w-full min-h-[90vh] px-4 py-4 bg-[#100d22] rounded-3xl">
         <h1 className="heading text-2xl text-white mb-4">Friend Requests</h1>
 
         <div className="p-3 mt-4 space-y-4">
@@ -113,7 +113,11 @@ const FriendRequest = () => {
                 variants={cardVariants}
                 initial="hidden"
                 animate="visible"
-                transition={{ duration: 0.4, delay: index * 0.1, ease: "easeOut" }}
+                transition={{
+                  duration: 0.4,
+                  delay: index * 0.1,
+                  ease: "easeOut",
+                }}
               >
                 <img
                   src={profileImg}
