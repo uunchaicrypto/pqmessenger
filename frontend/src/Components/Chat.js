@@ -125,6 +125,7 @@ const Chat = () => {
       );
       resetForm();
       // Optionally, fetch messages again to update the chat
+      setIsSending(false);
       const response = await AxiosClient.get(`/get_messages/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -132,7 +133,6 @@ const Chat = () => {
     } catch (error) {
       toast.error(error?.response?.data?.error || "Failed to send message");
     } finally {
-      setIsSending(false);
     }
   };
 
