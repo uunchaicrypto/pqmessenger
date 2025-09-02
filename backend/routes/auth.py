@@ -113,6 +113,7 @@ def login():
             return jsonify({"error": "Invalid username or password"}), 401
 
         user_data = user_doc.to_dict()
+        sender_pk = bytes.fromhex(user_data.get("public_key", ""))
         if not user_data:
             return jsonify({"error": "User data not found"}), 404
 
@@ -127,15 +128,36 @@ def login():
         )
         if not decrypted_private_key:
             return jsonify({"error": "Decryption failed"}), 500
+        
+        #create a aes key for the session
+        aes_key = secrets.token_bytes(32) # 256-bit aes key
+        
+        #wrap the AES key for sender 
+        kyber = KyberWrapper()
+        ct_sender, ss_sender = kyber.encapsulate(sender_pk)
+        key_sender = hashlib.sha256(ss_sender).digest()
+        iv_sender = secrets.token_bytes(16)
+
+        cipher_sender = Cipher(algorithms.AES(key_sender), modes.CBC(iv_sender))
+        encryptor_sender = cipher_sender.encryptor()
+        padder_sender = sym_padding.PKCS7(128).padder()
+        padded_aes_key_s = padder_sender.update(aes_key) + padder_sender.finalize()
+        encrypted_aes_key_sender = encryptor_sender.update(padded_aes_key_s) + encryptor_sender.finalize()
 
         # Store session in Redis
         session_id = secrets.token_hex(16)
         redis_client = current_app.redis_client
 
+
         redis_client.hset(f"session:{session_id}", "user_id", str(user_doc.id))
         redis_client.hset(f"session:{session_id}", "username", user_data.get("username"))
         redis_client.hset(f"session:{session_id}", "private_key", decrypted_private_key)  # No .hex()
         redis_client.hset(f"session:{session_id}", "created_at", datetime.now(timezone.utc).isoformat())
+        redis_client.hset(f"session:{session_id}", "aes_key", aes_key.hex())
+        redis_client.hset(f"session:{session_id}", "ct_sender", ct_sender.hex())
+        redis_client.hset(f"session:{session_id}", "encrypted_aes_key", encrypted_aes_key_sender.hex())
+        redis_client.hset(f"session:{session_id}", "iv_sender", iv_sender.hex())
+
         redis_client.expire(f"session:{session_id}", 3600)
 
         token = jwt.encode(
@@ -468,7 +490,8 @@ def chat_message(friend_id, message):
     try:
         db = firestore.client()
         kyber = KyberWrapper()
-
+        redis_client = current_app.redis_client
+        session = g.session_id
         # Get both of'em's data
         user_doc = db.collection("users").document(g.user_id).get()
         friend_doc = db.collection("users").document(friend_id).get()
@@ -478,13 +501,12 @@ def chat_message(friend_id, message):
         if not user_doc.exists or not friend_doc.exists:
             return jsonify({"error": "User or friend not found"}), 404
         # get actual public keys
-        sender_pk = bytes.fromhex(user_doc.to_dict().get("public_key"))
         receiver_pk = bytes.fromhex(friend_doc.to_dict().get("public_key"))
 
         # print("public keys gotten")
 
-        # Generate aes and iv to encrypt the message 
-        aes_key = secrets.token_bytes(32)  # 256-bit key
+        # Retrieve session aes key from redis server
+        aes_key = bytes.fromhex(redis_client.hget(f"session:{session}", "aes_key"))
         iv_message = secrets.token_bytes(16)
         # print("aes key and iv generated")
 
@@ -512,17 +534,11 @@ def chat_message(friend_id, message):
         encrypted_aes_key_receiver = encryptor_receiver.update(padded_aes_key_r) + encryptor_receiver.finalize()
         # print("receiver's aes key encrypted")
 
-        # Wrap the AES key for sender
-        ct_sender, ss_sender = kyber.encapsulate(sender_pk)
-        key_sender = hashlib.sha256(ss_sender).digest()
-        iv_sender = secrets.token_bytes(16)
-        # print("sender's kyber encapsulated")
-
-        cipher_sender = Cipher(algorithms.AES(key_sender), modes.CBC(iv_sender))
-        encryptor_sender = cipher_sender.encryptor()
-        padder_sender = sym_padding.PKCS7(128).padder()
-        padded_aes_key_s = padder_sender.update(aes_key) + padder_sender.finalize()
-        encrypted_aes_key_sender = encryptor_sender.update(padded_aes_key_s) + encryptor_sender.finalize()
+        # Retrieve the wrapped aes key for sender
+        
+        encrypted_aes_key_sender = bytes.fromhex(redis_client.hget(f"session:{session}", "encrypted_aes_key"))
+        iv_sender = bytes.fromhex(redis_client.hget(f"session:{session}", "iv_sender"))
+        ct_sender = bytes.fromhex(redis_client.hget(f"session:{session}", "ct_sender"))
         # print("sender's aes key encrypted")
         #  Store in database
         # print('aes key:', aes_key)
