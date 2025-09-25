@@ -1,0 +1,127 @@
+@startuml
+skinparam backgroundColor #f9f9f9
+skinparam packageStyle rectangle
+skinparam class {
+  BorderColor Black
+  ArrowColor Black
+  BackgroundColor #fefefe
+}
+skinparam stereotypeCBackgroundColor #ddeeff
+skinparam stereotypeABackgroundColor #ddffdd
+skinparam stereotypeIBackgroundColor #ffdddd
+skinparam shadowing true
+
+package "Frontend (React)" #ddeeff {
+  class App
+  class Logout
+  class DirectMessages
+  class AuthContext
+  class Chat
+  class Home
+  class Login
+  class Dashboard
+  class FriendRequests
+  class Info
+  class Notifications
+  class AboutMe
+  class AddFriend
+  class Register
+
+  App --> Login 
+  App --> AuthContext : GetUserStatus
+  App --> Register
+
+  Register --> Login : Success
+
+  Login --> AuthContext : UpdateUserStatus
+  Login --> Dashboard : Success
+
+  Dashboard --> Home : Default 
+  Dashboard --> FriendRequests
+  Dashboard --> Notifications
+  Dashboard --> AboutMe
+  Dashboard --> Logout 
+
+  Logout --> AuthContext : UpdateUserStatus
+  
+  AboutMe --> AuthContext : GetUserStatus
+  Home --> DirectMessages
+  DirectMessages --> Chat
+  Home --> AddFriend
+  Chat --> Info
+}
+
+package "Backend (Flask)" #ddffdd {
+  class Application
+  class KyberService <<crypto>>
+  class SecurityService <<auth>>
+  class AuthRoutes <<routes>>
+  class UserModel <<ORM>>
+  class FriendModel <<ORM>>
+  class MessageModel <<ORM>>
+
+  Application --> AuthRoutes
+  Application --> KyberService
+  Application --> SecurityService
+  AuthRoutes --> UserModel
+  AuthRoutes --> Redis
+  AuthRoutes --> Firestore
+  KyberService --> PQClean
+  Application --> Firestore
+  Application --> Redis
+  Application --> UserModel
+  Application --> FriendModel
+  Application --> MessageModel
+}
+
+package "Database & Cache" #ffdddd {
+  class Firestore <<database>>
+  class Redis <<cache>>
+  class PQClean <<crypto-lib>>
+
+  package "Firestore Collections" {
+    class Users {
+      + userId : string
+      + username : string
+      + passwordHash : bcrypt
+      + publicKey : bytes
+      + encryptedSecretKeyHash : bytes
+      + iv : bytes
+      + salt : bytes
+      + ...  
+    }
+
+    class Messages {
+      + messageId : string
+      + senderId : string
+      + receiverId : string
+      + ciphertext : bytes
+      + aesKeyEncSender : bytes
+      + aesKeyEncReceiver : bytes
+      + timestamp : datetime
+      + ...
+    }
+  }
+
+  Firestore --> Users
+  Firestore --> Messages
+  Redis : sessionId → userId
+  Redis : decryptedPrivateKey (temp)
+}
+
+interface "AxiosClient"
+
+Login --> "AxiosClient"
+Dashboard --> "AxiosClient"
+Chat --> "AxiosClient"
+Notifications --> "AxiosClient"
+FriendRequests --> "AxiosClient"
+AddFriend --> "AxiosClient"
+
+
+interface "REST API"
+
+AxiosClient --> "REST API" : Axios
+
+"REST API" --> Application
+@enduml
