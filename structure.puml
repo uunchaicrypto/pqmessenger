@@ -1,4 +1,4 @@
-@startuml
+@startuml UunchaiCryptography
 skinparam backgroundColor #f9f9f9
 skinparam packageStyle rectangle
 skinparam class {
@@ -77,37 +77,52 @@ package "Backend (Flask)" #ddffdd {
 package "Database & Cache" #ffdddd {
   class Firestore <<database>>
   class Redis <<cache>>
-  class PQClean <<crypto-lib>>
 
   package "Firestore Collections" {
     class Users {
-      + userId : string
+      + userId : documentId
+      + created_at : datetime
+      + encrypted_secret_key : string
+      + friends : array
+      + iv : string
+      + notifications : array
+      + password_hash : string
+      + public_key : string
+      + salt : string
       + username : string
-      + passwordHash : bcrypt
-      + publicKey : bytes
-      + encryptedSecretKeyHash : bytes
-      + iv : bytes
-      + salt : bytes
-      + ...  
     }
 
     class Messages {
-      + messageId : string
-      + senderId : string
-      + receiverId : string
-      + ciphertext : bytes
-      + aesKeyEncSender : bytes
-      + aesKeyEncReceiver : bytes
+      + from : string
+      + iv_message : string
+      + encrypted_message : string
+      + receiver_ciphertext : string
+      + receiver_encrypted_key : string
+      + receiver_iv : string
+      + sender_ciphertext : string
+      + sender_encrypted_key : string
+      + sender_iv : string
       + timestamp : datetime
-      + ...
+      + to : string
     }
   }
 
   Firestore --> Users
   Firestore --> Messages
-  Redis : sessionId → userId
-  Redis : decryptedPrivateKey (temp)
+
+  class "Redis Session Hash " as RedisSession {
+      + sessionId : string
+      + decrypted_private_key : string
+      + aes_key : string
+      + ct_sender : string
+      + encrypted_aes_key : string
+      + iv_sender : string
+      -- TTL : 3600s --
+  }
+
+  Redis --> RedisSession
 }
+
 
 interface "AxiosClient"
 

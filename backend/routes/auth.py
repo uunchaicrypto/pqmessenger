@@ -149,10 +149,7 @@ def login():
         redis_client = current_app.redis_client
 
 
-        redis_client.hset(f"session:{session_id}", "user_id", str(user_doc.id))
-        redis_client.hset(f"session:{session_id}", "username", user_data.get("username"))
         redis_client.hset(f"session:{session_id}", "private_key", decrypted_private_key)  # No .hex()
-        redis_client.hset(f"session:{session_id}", "created_at", datetime.now(timezone.utc).isoformat())
         redis_client.hset(f"session:{session_id}", "aes_key", aes_key.hex())
         redis_client.hset(f"session:{session_id}", "ct_sender", ct_sender.hex())
         redis_client.hset(f"session:{session_id}", "encrypted_aes_key", encrypted_aes_key_sender.hex())
@@ -570,7 +567,8 @@ def chat_message(friend_id, message):
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
-        
+        redis_client.expire(f"session:{session}", 3600)
+
 
         return jsonify({"message": "Secure message sent!"}), 200
 
@@ -669,6 +667,7 @@ def get_messages(friend_id):
             eachmsg["message"] = decrypted_message
 
         # print("messages decrypted")
+
         return jsonify(all_msgs), 200
 
     except Exception as e:
