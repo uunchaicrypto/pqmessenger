@@ -52,26 +52,32 @@ package "Frontend (React)" #ddeeff {
 }
 
 package "Backend (Flask)" #ddffdd {
+  
   class Application
-  class KyberService <<crypto>>
-  class SecurityService <<auth>>
+  class KyberWrapper <<Kyber KEM>>
+  class KyberLibrary.dll <<Kyber library>> {
+  Windows
+  }
+class KyberLibrary.so <<Kyber library>> {
+  Linux
+  }
+  class Security 
   class AuthRoutes <<routes>>
-  class UserModel <<ORM>>
-  class FriendModel <<ORM>>
-  class MessageModel <<ORM>>
+  class UserModel 
+  class Databases {
+    Firebase
+    Redis Cache
+  }
 
   Application --> AuthRoutes
-  Application --> KyberService
-  Application --> SecurityService
-  AuthRoutes --> UserModel
-  AuthRoutes --> Redis
-  AuthRoutes --> Firestore
-  KyberService --> PQClean
-  Application --> Firestore
-  Application --> Redis
-  Application --> UserModel
-  Application --> FriendModel
-  Application --> MessageModel
+  Application --> Databases : Init DBs
+  AuthRoutes --> UserModel : Queries
+  AuthRoutes --> Security : Encrypt/Decrypt, Hashing
+  AuthRoutes --> Databases : Retrieve Data
+  AuthRoutes --> KyberWrapper : KeyGen, Encaps, Decaps
+  KyberWrapper --> KyberLibrary.dll 
+  KyberWrapper --> KyberLibrary.so 
+  
 }
 
 package "Database & Cache" #ffdddd {
