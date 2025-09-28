@@ -1,85 +1,84 @@
 @startuml UunchaiCryptography
+
 skinparam backgroundColor #f9f9f9
 skinparam packageStyle rectangle
 skinparam class {
   BorderColor Black
   ArrowColor Black
   BackgroundColor #fefefe
+  Padding 8
+  FontSize 10
 }
-skinparam stereotypeCBackgroundColor #ddeeff
-skinparam stereotypeABackgroundColor #ddffdd
-skinparam stereotypeIBackgroundColor #ffdddd
+skinparam packagePadding 10
+skinparam ArrowFontSize 10
+skinparam roundcorner 5
 skinparam shadowing true
 
+' Frontend
 package "Frontend (React)" #ddeeff {
   class App
-  class Logout
-  class DirectMessages
-  class AuthContext
-  class Chat
-  class Home
   class Login
-  class Dashboard
-  class FriendRequests
-  class Info
-  class Notifications
-  class AboutMe
-  class AddFriend
   class Register
+  class AuthContext
+  class Dashboard
+  class Home
+  class DirectMessages
+  class Chat
+  class AddFriend
 
-  App --> Login 
-  App --> AuthContext : GetUserStatus
+  package "Social Features" {
+    class FriendRequests
+    class Notifications
+    class AboutMe
+    class Logout
+  }
+
+  App --> Login
   App --> Register
+  App --> AuthContext : GetUserStatus
+  App --> Dashboard
 
   Register --> Login : Success
-
   Login --> AuthContext : UpdateUserStatus
   Login --> Dashboard : Success
 
-  Dashboard --> Home : Default 
-  Dashboard --> FriendRequests
-  Dashboard --> Notifications
-  Dashboard --> AboutMe
-  Dashboard --> Logout 
+  Dashboard --> Home : Default
+  Dashboard --> "Social Features"
 
-  Logout --> AuthContext : UpdateUserStatus
-  
-  AboutMe --> AuthContext : GetUserStatus
   Home --> DirectMessages
-  DirectMessages --> Chat
   Home --> AddFriend
-  Chat --> Info
+  DirectMessages --> Chat
 }
 
+' Backend
 package "Backend (Flask)" #ddffdd {
-  
   class Application
-  class KyberWrapper <<Kyber KEM>>
-  class KyberLibrary.dll <<Kyber library>> {
-  Windows
-  }
-class KyberLibrary.so <<Kyber library>> {
-  Linux
-  }
-  class Security 
   class AuthRoutes <<routes>>
-  class UserModel 
+  class KyberWrapper <<Kyber KEM>>
+  class Security
+  class UserModel
   class Databases {
-    Firebase
+    Firestore
     Redis Cache
+  }
+  class KyberLibrary.dll <<Kyber library>> {
+    Windows
+  }
+  class KyberLibrary.so <<Kyber library>> {
+    Linux
   }
 
   Application --> AuthRoutes
   Application --> Databases : Init DBs
   AuthRoutes --> UserModel : Queries
-  AuthRoutes --> Security : Encrypt/Decrypt, Hashing
+  AuthRoutes --> Security : Encrypt/Decrypt, Hash
   AuthRoutes --> Databases : Retrieve Data
-  AuthRoutes --> KyberWrapper : KeyGen, Encaps, Decaps
-  KyberWrapper --> KyberLibrary.dll 
-  KyberWrapper --> KyberLibrary.so 
-  
+  AuthRoutes --> KyberWrapper : KeyGen/Encaps/Decaps
+  KyberWrapper --> KyberLibrary.dll
+  KyberWrapper --> KyberLibrary.so
 }
 
+' Databasess 
 package "Database & Cache" #ffdddd {
   class Firestore <<database>>
   class Redis <<cache>>
@@ -87,36 +86,33 @@ package "Database & Cache" #ffdddd {
   package "Firestore Collections" {
     class Users {
       + userId : documentId
-      + created_at : datetime
-      + encrypted_secret_key : string
-      + friends : array
-      + iv : string
-      + notifications : array
+      + username : string
       + password_hash : string
       + public_key : string
+      + encrypted_secret_key : string
       + salt : string
-      + username : string
+      + iv : string
+      + friends : array
+      + notifications : array
+      + created_at : datetime
     }
-
     class Messages {
       + from : string
-      + iv_message : string
+      + to : string
       + encrypted_message : string
-      + receiver_ciphertext : string
-      + receiver_encrypted_key : string
-      + receiver_iv : string
-      + sender_ciphertext : string
       + sender_encrypted_key : string
       + sender_iv : string
+      + receiver_encrypted_key : string
+      + receiver_iv : string
+      + iv_message : string
       + timestamp : datetime
-      + to : string
     }
   }
 
   Firestore --> Users
   Firestore --> Messages
 
-  class "Redis Session Hash " as RedisSession {
+  class "Redis Session Hash" as RedisSession {
       + sessionId : string
       + decrypted_private_key : string
       + aes_key : string
@@ -129,20 +125,12 @@ package "Database & Cache" #ffdddd {
   Redis --> RedisSession
 }
 
-
+' Middlewares type thingy 
 interface "AxiosClient"
-
-Login --> "AxiosClient"
-Dashboard --> "AxiosClient"
-Chat --> "AxiosClient"
-Notifications --> "AxiosClient"
-FriendRequests --> "AxiosClient"
-AddFriend --> "AxiosClient"
-
+App --> "AxiosClient"
 
 interface "REST API"
-
-AxiosClient --> "REST API" : Axios
-
+"AxiosClient" --> "REST API" : Axios
 "REST API" --> Application
+
 @enduml
