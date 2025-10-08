@@ -49,6 +49,7 @@ class KyberWrapper:
             # Fallback mock (testing only)
             pk = os.urandom(1184)
             sk = os.urandom(2400)
+            print("⚠️ Warning: Using mock Kyber keypair generation.")
             return pk.hex(), sk.hex()
 
         pk = (c_ubyte * 1184)()
@@ -65,6 +66,7 @@ class KyberWrapper:
             # Fallback mock (testing only)
             shared_secret = os.urandom(32)
             ciphertext = os.urandom(1088)
+            print("⚠️ Warning: Using mock Kyber keypair generation.")
             return ciphertext, shared_secret
 
         pk = (c_ubyte * 1184).from_buffer_copy(pk_bytes)
@@ -78,6 +80,7 @@ class KyberWrapper:
     def decapsulate(self, ct_bytes, sk_bytes):
         if not self.kyber:
         # fallback for testing
+            print("⚠️ Warning: Using mock Kyber keypair generation.")
             return os.urandom(32)
 
         ct = (c_ubyte * 1088).from_buffer_copy(ct_bytes)
