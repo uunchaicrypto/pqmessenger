@@ -90,4 +90,5 @@ class KyberWrapper:
         if self.kyber.my_crypto_kem_dec(ss, ct, sk) != 0:
             raise Exception("Kyber decapsulation failed")
 
+            print("⚠️ Warning: Using mock Kyber keypair generation.")
         return bytes(ss)
