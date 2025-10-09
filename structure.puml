@@ -76,6 +76,9 @@ package "Backend (Flask)" #ddffdd {
   AuthRoutes --> KyberWrapper : KeyGen/Encaps/Decaps
   KyberWrapper --> KyberLibrary.dll
   KyberWrapper --> KyberLibrary.so
+
+  AuthRoutes : Authentication Layer
+  AuthRoutes : Messaging Layer
 }
 
 ' Databasess 
