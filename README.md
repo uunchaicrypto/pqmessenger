@@ -65,6 +65,8 @@ cd ../frontend
 npm install
 cd ..
 ```
+#### 🔐 Kyber Shared Library (Required)
+Checkout the [README](KyberCompilation/README.md) file under the **KyberCompilation** folder for instructions on compiling the shared library .
 
 #### 🔴 Redis Setup (Required)
 
@@ -82,6 +84,7 @@ cd ..
    redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
    ```
 4. **Purpose:** Stores **active sessions**, **ephemeral keys**, and **private data** securely in memory.
+
 
 ### 3️⃣ Start the app (Windows)
 **Make sure your Redis server is online before starting!**
@@ -137,6 +140,7 @@ flowchart TD
 * **frontend/** — React app, components, routes, state management
 * **models/** — User, friend, and message data schemas
 * **public/** — Static assets and icons
+* **KyberCompilation/** — Method to compiled a shared kyber library in `.dll` for windows. 
 
 ---
 <!-- 
