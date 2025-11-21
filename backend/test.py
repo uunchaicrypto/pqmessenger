@@ -1,3 +1,4 @@
+#testing how kyber works end to end
 from kyber import KyberWrapper
 from security import encrypt_secret_key, decrypt_secret_key
 import secrets
@@ -75,3 +76,24 @@ print("Decrypted Message:", decrypted_msg.decode())
 # Step 4: Compare
 assert ss_enc == ss_dec, "❌ Shared secret mismatch!"
 print("✅ Shared secret matches.")
+
+#testing how redis works with null values
+
+import redis
+import os
+#redis setup
+redis_client = redis.Redis(
+    host=os.getenv('REDIS_HOST', 'localhost'),
+    port=int(os.getenv('REDIS_PORT', 6379)),
+    db=int(os.getenv('REDIS_DB', 0)),
+    decode_responses=True
+)
+
+session_id = "test_session"
+encrypted_aes_key = redis_client.get(f'session:{session_id}:aes_key')
+if encrypted_aes_key:
+    print("Encrypted AES Key found in Redis.")
+else:
+    print("No Encrypted AES Key found in Redis. ")
+
+redis_client.expire(f'session:{session_id}:aes_key', 3)  # Set expiration to 1 hour
