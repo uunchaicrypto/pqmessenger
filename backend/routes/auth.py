@@ -518,18 +518,30 @@ def chat_message(friend_id, message):
         # print("message encrypted")
 
         # print("receiver pk type:", type(receiver_pk))
-        #  Wrap the AES key for receiver
-        ct_receiver, ss_receiver = kyber.encapsulate(receiver_pk)
-        key_receiver = hashlib.sha256(ss_receiver).digest()
-        iv_receiver = secrets.token_bytes(16)
-        # print("receiver's kyber encapsulated")
+        # Retrieve the wrapped aes key for receiver if exists
+        encrypted_aes_key_receiver = redis_client.hget(f"session:{friend_id}", "encrypted_aes_key")
+        if encrypted_aes_key_receiver: 
+            encrypted_aes_key_receiver = bytes.fromhex(encrypted_aes_key_receiver)
+            iv_receiver = bytes.fromhex(redis_client.hget(f"session:{friend_id}", "iv_receiver"))
+            ct_receiver = bytes.fromhex(redis_client.hget(f"session:{friend_id}", "ct_receiver"))
+            # print("found existing wrapped key for receiver in redis")
+        else:
+            #  Wrap the AES key for receiver
+            ct_receiver, ss_receiver = kyber.encapsulate(receiver_pk)
+            key_receiver = hashlib.sha256(ss_receiver).digest()
+            iv_receiver = secrets.token_bytes(16)
+            # print("receiver's kyber encapsulated")
 
-        cipher_receiver = Cipher(algorithms.AES(key_receiver), modes.CBC(iv_receiver))
-        encryptor_receiver = cipher_receiver.encryptor()
-        padder_receiver = sym_padding.PKCS7(128).padder()
-        padded_aes_key_r = padder_receiver.update(aes_key) + padder_receiver.finalize()
-        encrypted_aes_key_receiver = encryptor_receiver.update(padded_aes_key_r) + encryptor_receiver.finalize()
-        # print("receiver's aes key encrypted")
+            cipher_receiver = Cipher(algorithms.AES(key_receiver), modes.CBC(iv_receiver))
+            encryptor_receiver = cipher_receiver.encryptor()
+            padder_receiver = sym_padding.PKCS7(128).padder()
+            padded_aes_key_r = padder_receiver.update(aes_key) + padder_receiver.finalize()
+            encrypted_aes_key_receiver = encryptor_receiver.update(padded_aes_key_r) + encryptor_receiver.finalize()
+            # Store wrapped key in redis for future use
+            redis_client.hset(f"session:{friend_id}", "encrypted_aes_key", encrypted_aes_key_receiver.hex())
+            redis_client.hset(f"session:{friend_id}", "iv_receiver", iv_receiver.hex())
+            redis_client.hset(f"session:{friend_id}", "ct_receiver", ct_receiver.hex())
+            # print("receiver's aes key encrypted")
 
         # Retrieve the wrapped aes key for sender
         
