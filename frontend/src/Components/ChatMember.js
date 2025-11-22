@@ -74,6 +74,9 @@ const ChatMember = () => {
     return (
       <div className="text-white text-center mt-20">
         You must be logged in to view messages.
+        <Link to="/" className="text-blue-500 underline ml-2">
+          Login
+        </Link>
       </div>
     );
   }
