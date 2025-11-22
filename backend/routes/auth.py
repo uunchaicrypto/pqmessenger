@@ -1,13 +1,9 @@
 from flask import Blueprint, request, jsonify, current_app, g
-import hashlib
 import secrets
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives import padding as sym_padding
 import os
 from datetime import datetime, timezone
 import jwt
 from models.user import User
-from kyber import KyberWrapper
 from security import (
     validate_username,
     validate_password,
@@ -16,12 +12,15 @@ from security import (
     encrypt_secret_key,
     decrypt_secret_key,
     decrypt_message,
+    encrypt_message,
+    encrypt_aes_key,
+    generate_key_pair
+
 )
 from firebase_admin import firestore
 
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api")
-kyber_wrapper = KyberWrapper()
 
 
 # --- Registration ---
@@ -51,7 +50,7 @@ def register():
         if User.get_by_username(db, username):
             return jsonify({"error": "Username already exists"}), 409
 
-        public_key, private_key = kyber_wrapper.generate_keypair()
+        public_key, private_key = generate_key_pair()
 
         salt = os.urandom(16)
         iv = os.urandom(16)
@@ -133,16 +132,7 @@ def login():
         aes_key = secrets.token_bytes(32) # 256-bit aes key
         
         #wrap the AES key for sender 
-        kyber = KyberWrapper()
-        ct_sender, ss_sender = kyber.encapsulate(sender_pk)
-        key_sender = hashlib.sha256(ss_sender).digest()
-        iv_sender = secrets.token_bytes(16)
-
-        cipher_sender = Cipher(algorithms.AES(key_sender), modes.CBC(iv_sender))
-        encryptor_sender = cipher_sender.encryptor()
-        padder_sender = sym_padding.PKCS7(128).padder()
-        padded_aes_key_s = padder_sender.update(aes_key) + padder_sender.finalize()
-        encrypted_aes_key_sender = encryptor_sender.update(padded_aes_key_s) + encryptor_sender.finalize()
+        ct_sender, encrypted_aes_key_sender, iv_sender = encrypt_aes_key(sender_pk, aes_key)
 
         # Store session in Redis
         session_id = secrets.token_hex(16)
@@ -486,82 +476,45 @@ def get_friend_by_id(friend_id):
 def chat_message(friend_id, message):
     try:
         db = firestore.client()
-        kyber = KyberWrapper()
         redis_client = current_app.redis_client
         session = g.session_id
         # Get both of'em's data
         user_doc = db.collection("users").document(g.user_id).get()
         friend_doc = db.collection("users").document(friend_id).get()
-
-        # print("data gotten")
+        print("user docs found")
 
         if not user_doc.exists or not friend_doc.exists:
             return jsonify({"error": "User or friend not found"}), 404
         # get actual public keys
         receiver_pk = bytes.fromhex(friend_doc.to_dict().get("public_key"))
 
-        # print("public keys gotten")
-
         # Retrieve session aes key from redis server
         aes_key = bytes.fromhex(redis_client.hget(f"session:{session}", "aes_key"))
         iv_message = secrets.token_bytes(16)
-        # print("aes key and iv generated")
+        encrypted_message = encrypt_message(aes_key,message,iv_message)
 
-        # Encrypt the message
-        cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv_message))
-        encryptor = cipher.encryptor()
-        padder = sym_padding.PKCS7(128).padder()
-        # print("cipher created")
-
-        padded_msg = padder.update(message.encode()) + padder.finalize()
-        encrypted_message = encryptor.update(padded_msg) + encryptor.finalize()
-        # print("message encrypted")
-
-        # print("receiver pk type:", type(receiver_pk))
         # Retrieve the wrapped aes key for receiver if exists
         encrypted_aes_key_receiver = redis_client.hget(f"session:{friend_id}", "encrypted_aes_key")
         if encrypted_aes_key_receiver: 
             encrypted_aes_key_receiver = bytes.fromhex(encrypted_aes_key_receiver)
             iv_receiver = bytes.fromhex(redis_client.hget(f"session:{friend_id}", "iv_receiver"))
             ct_receiver = bytes.fromhex(redis_client.hget(f"session:{friend_id}", "ct_receiver"))
-            # print("found existing wrapped key for receiver in redis")
         else:
             #  Wrap the AES key for receiver
-            ct_receiver, ss_receiver = kyber.encapsulate(receiver_pk)
-            key_receiver = hashlib.sha256(ss_receiver).digest()
-            iv_receiver = secrets.token_bytes(16)
-            # print("receiver's kyber encapsulated")
+            ct_receiver, encrypted_aes_key_receiver, iv_receiver = encrypt_aes_key(receiver_pk, aes_key) 
 
-            cipher_receiver = Cipher(algorithms.AES(key_receiver), modes.CBC(iv_receiver))
-            encryptor_receiver = cipher_receiver.encryptor()
-            padder_receiver = sym_padding.PKCS7(128).padder()
-            padded_aes_key_r = padder_receiver.update(aes_key) + padder_receiver.finalize()
-            encrypted_aes_key_receiver = encryptor_receiver.update(padded_aes_key_r) + encryptor_receiver.finalize()
             # Store wrapped key in redis for future use
             redis_client.hset(f"session:{friend_id}", "encrypted_aes_key", encrypted_aes_key_receiver.hex())
             redis_client.hset(f"session:{friend_id}", "iv_receiver", iv_receiver.hex())
             redis_client.hset(f"session:{friend_id}", "ct_receiver", ct_receiver.hex())
-            # print("receiver's aes key encrypted")
 
         # Retrieve the wrapped aes key for sender
         
         encrypted_aes_key_sender = bytes.fromhex(redis_client.hget(f"session:{session}", "encrypted_aes_key"))
         iv_sender = bytes.fromhex(redis_client.hget(f"session:{session}", "iv_sender"))
         ct_sender = bytes.fromhex(redis_client.hget(f"session:{session}", "ct_sender"))
-        # print("sender's aes key encrypted")
         #  Store in database
-        # print('aes key:', aes_key)
-        # print("Encrypting for receiver:")
-        # print("Receiver public key:", receiver_pk.hex())
-        # print("Receiver ct:", ct_receiver.hex())
-        # print("Receiver ss:", ss_receiver.hex())
-        # print("Receiver IV:", iv_receiver.hex())
-        # print("Encrypting for sender:")
-        # print("Sender public key:", sender_pk.hex()) 
-        # print("Sender ct:", ct_sender.hex())
-        # print("Sender ss:", ss_sender.hex())
-        # print("Sender IV:", iv_sender.hex())
-
+     
         db.collection("messages").add({
             "from": g.user_id,
             "to": friend_id,
@@ -595,12 +548,9 @@ def get_messages(friend_id):
     try:
         db = firestore.client()
         current_user_id = g.user_id
-        # print("got user id:", current_user_id)
-
         # Get both of'em's data
         user_doc = db.collection("users").document(current_user_id).get()
         friend_doc = db.collection("users").document(friend_id).get()
-        # print("both user docs gotten    ")
 
         if not user_doc.exists or not friend_doc.exists:
             return jsonify({"error": "User or friend not found"}), 404 
@@ -611,11 +561,8 @@ def get_messages(friend_id):
         private_key_hex = redis_client.hget(f"session:{session_id}", "private_key")
         if not private_key_hex: 
             return jsonify({"error": "Session not found"}), 404
-        # print("user private key gotten  ")
-        # print(private_key_hex)
 
         private_key = bytes.fromhex(private_key_hex)
-        # print("user private key converted from hex to bytes")
 
         messages_ref = db.collection("messages")
         sent_query = messages_ref.where("from", "==", current_user_id).where(
@@ -624,11 +571,9 @@ def get_messages(friend_id):
         recv_query = messages_ref.where("from", "==", friend_id).where(
             "to", "==", current_user_id
         )
-        # print("queries created")
 
         sent_msgs = sent_query.stream()
         recv_msgs = recv_query.stream()
-        # print("messages fetched")
         all_msgs = []
 
         for msg in sent_msgs:
@@ -648,7 +593,6 @@ def get_messages(friend_id):
                 "timestamp": data["timestamp"],
             }
             )
-            # print("sent messages processed")
 
         for msg in recv_msgs:
             data = msg.to_dict()
@@ -667,18 +611,15 @@ def get_messages(friend_id):
                 "timestamp": data["timestamp"],
             }
             )
-            # print("received messages processed")
 
         # Sort messages by timestamp
         all_msgs.sort(key=lambda m: m["timestamp"])
 
-        # print("messages sorted by timestamp")
 
         for eachmsg in all_msgs:
             decrypted_message = decrypt_message(eachmsg, current_user_id, private_key)
             eachmsg["message"] = decrypted_message
 
-        # print("messages decrypted")
 
         return jsonify(all_msgs), 200
 

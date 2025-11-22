@@ -1,8 +1,10 @@
+# ---- This is the file for the SECURITY LAYER ----
+
 import os
 import re
 import bcrypt
 import base64
-
+import secrets
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import padding 
@@ -16,6 +18,13 @@ load_dotenv()
 
 PBKDF2_ITERATIONS = int(os.getenv("PBKDF2_ITERATIONS", 100000))
 BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS", 12))
+
+def generate_key_pair():
+    kyber = KyberWrapper()
+    public_key, private_key = kyber.generate_keypair()
+    return public_key, private_key
+
+
 
 def validate_password(password):
     if len(password) < 8:
@@ -61,6 +70,36 @@ def encrypt_secret_key(secret_key_hex, password, salt, iv):
 
     encrypted_sk = encryptor.update(padded_sk) + encryptor.finalize()
     return encrypted_sk
+
+#encrypt aes key, given the user's private key and the aes key to be encrypted
+def encrypt_aes_key(private_key, aes_key):
+    kyber = KyberWrapper()
+    ciphertext, shared_secret = kyber.encapsulate(private_key)
+    key_user = hashlib.sha256(shared_secret).digest()
+    iv_user = secrets.token_bytes(16)
+
+    cipher = Cipher(algorithms.AES(key_user), modes.CBC(iv_user))
+    encryptor = cipher.encryptor()
+    padder = padding.PKCS7(128).padder()
+
+    padded_aes_key = padder.update(aes_key) + padder.finalize()
+    encrypted_aes_key = encryptor.update(padded_aes_key) + encryptor.finalize()
+
+    return ciphertext, encrypted_aes_key, iv_user
+
+#encrypt message using aes key and iv
+def encrypt_message(aes_key,message,iv_message):
+    cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv_message))
+    encryptor = cipher.encryptor()
+    padder = padding.PKCS7(128).padder()
+    # print("cipher created")
+
+    padded_msg = padder.update(message.encode()) + padder.finalize()
+    encrypted_message = encryptor.update(padded_msg) + encryptor.finalize()
+        # print("message encrypted")
+    return encrypted_message
+
+
 def decrypt_secret_key(encrypted_sk_hex, password, salt_hex, iv_hex):
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
